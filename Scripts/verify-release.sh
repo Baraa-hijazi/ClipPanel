@@ -26,6 +26,20 @@ check() {
   fi
 }
 
+# Framework allowlist: every directly-linked framework must be one this app has a stated reason to
+# use. A new framework appearing here should be a conscious decision, not a surprise in an audit.
+# Reasons: Foundation/AppKit/SwiftUI/CoreFoundation/CoreGraphics are the app;
+# Carbon is RegisterEventHotKey; ApplicationServices is AXIsProcessTrusted;
+# LocalAuthentication is the Touch ID gate; ServiceManagement is the login item;
+# Security/CryptoKit are the pin encryption and its keychain key.
+ALLOWED_FRAMEWORKS="Foundation|AppKit|Carbon|CoreGraphics|CoreFoundation|SwiftUI|ApplicationServices|LocalAuthentication|ServiceManagement|Security|CryptoKit"
+UNEXPECTED=$(otool -L "$BIN" | tail -n +2 | grep -oE '/([A-Za-z]+)\.framework' | sed 's|/||;s|\.framework||' | sort -u | grep -vE "^($ALLOWED_FRAMEWORKS)$" || true)
+if [ -n "$UNEXPECTED" ]; then
+  check "only expected frameworks linked" fail "$(echo "$UNEXPECTED" | tr '\n' ' ')"
+else
+  check "only expected frameworks linked" pass
+fi
+
 # Guarantee 1: no networking. Foundation is always linked and contains URLSession, so the meaningful
 # checks are that no networking framework is linked and no networking symbol is imported.
 if otool -L "$BIN" | grep -qiE "Network\.framework|CFNetwork"; then

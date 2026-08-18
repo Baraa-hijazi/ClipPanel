@@ -659,3 +659,41 @@ The seven milestones are complete. What is left is not code:
 Sensible next features, none of them required for the product to be finished: search within history
 (a fast follow the design already flagged), richer previews for code, and a Mac App Store variant that
 ships copy-only paste since the sandbox forbids synthetic keystrokes (section 6.4).
+
+### P0 through P3 complete (2026-08-18): the REVIEW.md round
+
+161 test cases, 43 self test checks, all gates green, zero sockets observed at runtime.
+
+**P0.** The lock-clear pin wipe is fixed (with the end-to-end test whose absence let it ship), the
+TOCTOU between type peek and payload read is closed by two independent guards (change-counter
+re-verification, and a marker re-check against the types actually captured), and representation
+slimming makes screenshots capturable while no longer forcing promised-data resolution for exotic
+types. The snapshot records declared types separately from stored ones so markers stay visible to
+the re-check despite never being stored.
+
+**P1, Secret Guard.** `SecretDetector` (pure, corpus-tested) assesses every captured text entry:
+known token prefixes, JWTs, PEM blocks, and scored password shapes, with browser or terminal
+provenance worth one tie-breaking point and URLs, emails, SHAs, digests, filenames, and domains
+exculpated first. Flagged entries are guarded, not blocked: masked until revealed (reveals reset on
+every panel open), expiring after five minutes unless pinned, pinnable only through a confirmation
+dialog, with the clipboard cleared a minute after pasting one if it still holds it. Strict mode
+drops them entirely, off by default because a false positive there is invisible data loss.
+`isGuarded` decodes as false from pre-upgrade pin files, tested against a synthesized old file.
+
+**P2.** Panic wipe (menu item plus ⌃⌥⌘⌫, on by default, disableable) and an opt-in Touch ID gate on
+the first panel open after a screen lock, built on an `Authenticating` protocol so the gate logic is
+tested with a scripted authenticator. `HotKeyManager` now supports one hot key per instance over a
+single process-wide Carbon handler, because a handler per instance would deliver every event to
+every handler.
+
+**P3, and what was deliberately NOT built.** `verify-release.sh` gained a framework allowlist with
+stated reasons per framework; its first run immediately caught two frameworks (ApplicationServices,
+CoreFoundation) that were then consciously allowlisted, which is precisely the behaviour the gate
+exists for. In-RAM payload sealing and best-effort zeroization (REVIEW P3.12/13) are **deferred, on
+purpose**: sealing without zeroizing the pre-seal plaintext copies is security theater, genuine
+zeroization is unachievable while payloads live in Swift value types (copy-on-write `Data` means
+`resetBytes` scrubs a copy), and the threat they address is largely covered by macOS's encrypted
+swap, while an attacker who can dump our process memory can also just read the pasteboard. Doing
+them honestly means redesigning payload storage around manually-managed buffers, which is a
+decision for a future round, recorded here so it is a decision and not an omission. Secure Enclave
+key wrapping (P3.14) stays deferred until Developer ID signing gives the app a stable identity.

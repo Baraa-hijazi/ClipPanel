@@ -15,14 +15,18 @@ Intel. No dependencies, and no network code of any kind.
 | Paste the selected entry | `Return` |
 | Paste as plain text | `⌥Return` |
 | Pin, so it survives Clear All and restarts | `⌘P` |
+| Reveal or mask a guarded entry | `⌘R` |
 | Remove an entry | `Delete` |
 | Close | `Escape` |
 
 The shortcut is `⌃⌘V` rather than `⇧⌘V` because `⇧⌘V` is Paste and Match Style in most Mac apps, and
 `⌥⌘V` is Move Item Here in Finder. Change it in Settings if you would rather have something else.
 
-Everything is also reachable from the menu bar icon: open the panel, pause capture, Clear All, and
-Settings.
+Everything is also reachable from the menu bar icon: open the panel, pause capture, Clear All,
+Panic Wipe, and Settings. Panic Wipe (also `⌃⌥⌘⌫`, disableable) clears every unpinned entry
+instantly. Optional protections in Settings, Privacy: expire the whole history on a schedule,
+clear it when the screen locks, and require Touch ID or your password the first time the panel
+opens after a lock.
 
 ## Permissions
 
@@ -55,23 +59,33 @@ The honest version, because a clipboard manager is by nature a pile of sensitive
    rather than decrypting into rubbish.
 4. **Copies your password manager marks as secret are never recorded, and never even read.** The
    decision is made from type identifiers alone, before any payload is fetched. Tests assert the
-   payload read count is zero on that path. This cannot be switched off.
-5. **Excluded apps are never recorded**, also without reading their payloads. Password managers ship
+   payload read count is zero on that path. This cannot be switched off. Two independent guards
+   also cover the race where the clipboard changes mid-read.
+5. **Copies that merely LOOK like passwords are guarded.** Most real passwords arrive unmarked,
+   from browsers, terminals, and chat. A detector recognises password shapes, access tokens (AWS,
+   GitHub, Slack, and kin), JWTs, and private key blocks. Flagged entries still paste normally,
+   but they are masked in the panel until revealed (`⌘R`), expire after five minutes unless
+   pinned, need confirmation to pin, and a minute after you paste one the clipboard is cleared if
+   it still holds it, the way password managers clean up after themselves. Strict mode (off by
+   default) refuses to record them at all.
+6. **Excluded apps are never recorded**, also without reading their payloads. Password managers ship
    in the list by default; terminals do not, because people copy from them constantly, but you can
    add them.
-6. **Your clipboard content never appears in logs.** `Scripts/audit-logging.sh` fails the build if a
+7. **Your clipboard content never appears in logs.** `Scripts/audit-logging.sh` fails the build if a
    log statement references a payload, a preview, or item text. Logs carry counts, sizes, and
    outcomes only.
-7. **The panel is excluded from screen recording and screenshots**, so your history does not turn up
-   in a screen share.
+8. **The panel is excluded from screen recording and screenshots**, so your history does not turn up
+   in a screen share. Masked entries also cover the case screen exclusion cannot: a person looking
+   at your screen.
 
 **What it cannot do, stated plainly:**
 
 - It cannot stop other apps from reading your clipboard. Any app you run can read the system
   clipboard; that is what a clipboard is. macOS 26's own clipboard prompts are your defence there,
   and ClipPanel adds nothing to that surface.
-- It cannot recognise a secret that the app you copied it from never marked as one. The exclusion
-  list and the pause switch are the tools for that.
+- The secret detector is a heuristic. It catches recognisable shapes, not every secret, and it
+  sometimes guards something harmless, which costs a masked preview and a shorter life, never data
+  loss. The exclusion list, strict mode, and the pause switch are the stronger tools.
 - It cannot scrub its own memory. Swift strings and data cannot be reliably zeroed, so while an entry
   is in history it is in RAM. Lifetime is kept short (entries are dropped on delete, Clear All, and
   eviction), but no stronger claim is being made.
@@ -97,7 +111,7 @@ xcodebuild -project ClipPanel.xcodeproj -scheme ClipPanel -destination 'platform
 The tests never touch the real clipboard or the real keychain: they drive fakes and injected keys, so
 running them cannot disturb what you had copied or raise a permission prompt.
 
-There is also a debug-only self test that drives the real app headlessly and checks 38 behaviours
+There is also a debug-only self test that drives the real app headlessly and checks 43 behaviours
 (panel focus, sizing, keyboard model, permission consistency). It is compiled out of Release builds:
 
 ```bash
