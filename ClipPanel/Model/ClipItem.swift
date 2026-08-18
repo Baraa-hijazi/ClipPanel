@@ -45,3 +45,16 @@ nonisolated struct ClipItem: Identifiable, Sendable, Codable, Equatable {
         Set(items.flatMap { $0.map(\.type) })
     }
 }
+
+extension ClipItem {
+    /// The stored plain text payload.
+    ///
+    /// Deliberately not derived from `preview`, which is truncated for display. Pasting from a
+    /// preview would silently hand the user a shortened version of what they copied.
+    var plainTextRepresentation: Representation? {
+        items.flatMap { $0 }.first { $0.type == PasteboardTypes.plainText }
+    }
+
+    /// Whether "paste as plain text" can do anything for this entry.
+    var hasPlainText: Bool { plainTextRepresentation != nil }
+}

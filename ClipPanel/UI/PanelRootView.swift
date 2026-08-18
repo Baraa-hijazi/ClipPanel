@@ -2,25 +2,24 @@
 //  PanelRootView.swift
 //  ClipPanel
 //
-//  M2 content: header, live list, empty state, and the pasteboard-denied state. M3 brings the
-//  full cards and keyboard navigation from DESIGN 8.
-//
 
 import SwiftUI
 
 struct PanelRootView: View {
     let store: HistoryStore
+    let selection: PanelSelection
     let pasteboardAccess: PasteboardAccess
-    /// Height the scrolling list is pinned to. The controller measures the rows first and
-    /// passes the answer in, because a ScrollView's own ideal height is flexible and would
-    /// otherwise collapse the panel to a single row.
+    var actions: PanelActions = .inert
+    /// Height the scrolling list is pinned to. The controller measures the rows first and passes
+    /// the answer in, because a ScrollView's own ideal height is flexible and would otherwise
+    /// collapse the panel to a single row.
     var listHeight: CGFloat = PanelMetrics.listMaxHeight
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            body(for: pasteboardAccess)
+            content
         }
         .frame(width: PanelMetrics.width)
         .background(.regularMaterial)
@@ -32,8 +31,8 @@ struct PanelRootView: View {
     }
 
     @ViewBuilder
-    private func body(for access: PasteboardAccess) -> some View {
-        if access == .denied {
+    private var content: some View {
+        if pasteboardAccess == .denied {
             deniedState
         } else if store.isEmpty {
             emptyState
@@ -43,14 +42,24 @@ struct PanelRootView: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 8) {
             Text("Clipboard")
                 .font(.headline)
-            Spacer()
             if store.settings.isPaused {
                 Text("Paused")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(.quaternary, in: Capsule())
+            }
+            Spacer()
+            if store.unpinnedCount > 0 {
+                Button("Clear All") {
+                    actions.clearAll()
+                }
+                .buttonStyle(.link)
+                .font(.callout)
+                .help("Remove every unpinned entry")
             }
         }
         .padding(.horizontal, 14)
@@ -58,10 +67,22 @@ struct PanelRootView: View {
     }
 
     private var list: some View {
-        ScrollView {
-            HistoryRowsView(items: store.items)
+        ScrollViewReader { proxy in
+            ScrollView {
+                HistoryRowsView(
+                    items: store.items,
+                    selectedID: selection.selectedID,
+                    actions: actions
+                )
+            }
+            .frame(height: listHeight)
+            .onChange(of: selection.selectedID) { _, id in
+                guard let id else { return }
+                withAnimation(.easeOut(duration: 0.12)) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
         }
-        .frame(height: listHeight)
     }
 
     private var emptyState: some View {
@@ -79,8 +100,8 @@ struct PanelRootView: View {
         .padding(.vertical, 30)
     }
 
-    /// macOS 26 lets the user refuse pasteboard reads outright (DESIGN 6.1). When that happens
-    /// the honest thing is to say so rather than sit there looking empty and broken.
+    /// macOS 26 lets the user refuse pasteboard reads outright (DESIGN 6.1). When that happens the
+    /// honest thing is to say so rather than sit there looking empty and broken.
     private var deniedState: some View {
         VStack(spacing: 8) {
             Image(systemName: "hand.raised.fill")
@@ -100,6 +121,11 @@ struct PanelRootView: View {
 }
 
 #Preview {
-    PanelRootView(store: HistoryStore(), pasteboardAccess: .allowed, listHeight: 200)
-        .padding(40)
+    PanelRootView(
+        store: HistoryStore(),
+        selection: PanelSelection(),
+        pasteboardAccess: .allowed,
+        listHeight: 200
+    )
+    .padding(40)
 }

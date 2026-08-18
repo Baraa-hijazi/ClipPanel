@@ -49,12 +49,20 @@ func textItem(_ string: String, at date: Date, pinned: Bool = false) -> ClipItem
 
 /// Drives the capture pipeline without touching the real pasteboard, so tests never read or
 /// disturb whatever the developer had copied.
-final class FakePasteboard: PasteboardSource {
+final class FakePasteboard: PasteboardSource, PasteboardWriting {
     var changeCount = 0
     var access: PasteboardAccess = .allowed
     var stored = PasteboardSnapshot(items: [])
     /// Counts payload reads, to prove the rules reject a copy without ever looking at it.
     var payloadReadCount = 0
+    /// Everything written back, newest last.
+    var writes: [[[ClipItem.Representation]]] = []
+
+    func write(_ items: [[ClipItem.Representation]]) {
+        writes.append(items)
+        stored = PasteboardSnapshot(items: items)
+        changeCount += 1
+    }
 
     func put(_ snapshot: PasteboardSnapshot) {
         stored = snapshot

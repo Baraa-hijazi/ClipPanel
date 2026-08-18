@@ -34,7 +34,7 @@ enum SelfTest {
             if !passed { failures.append(label) }
         }
 
-        print("ClipPanel M1 self test")
+        print("ClipPanel self test, M1 through M3")
         print("----------------------")
 
         // Let the app finish launching so activation policy and the menu bar item settle.
@@ -129,9 +129,62 @@ enum SelfTest {
               detail: "cap \(Int(PanelMetrics.maxHeight)) pt")
         check("populated panel still fits on screen", populated.fitsOnAScreen)
 
+        // MARK: M3, panel interaction
+
+        print("")
+        print("M3 panel interaction")
+
+        check("selection starts on the newest entry",
+              coordinator.panelSelectedID == coordinator.store.items.first?.id)
+
+        let secondEntry = coordinator.store.items[1].id
+        coordinator.sendPanelKeyCommand(.moveDown)
+        check("down arrow moves to the next entry", coordinator.panelSelectedID == secondEntry)
+
+        coordinator.sendPanelKeyCommand(.moveUp)
+        coordinator.sendPanelKeyCommand(.moveUp)
+        check("up arrow stops at the top rather than wrapping",
+              coordinator.panelSelectedID == coordinator.store.items.first?.id)
+
+        // Pin something further down the list, so "moved to the top" actually means something.
+        for _ in 0..<3 { coordinator.sendPanelKeyCommand(.moveDown) }
+        let toPin = coordinator.panelSelectedID
+        coordinator.sendPanelKeyCommand(.togglePin)
+        check("command-P pins the selected entry",
+              coordinator.store.items.first?.isPinned == true)
+        check("a pinned entry moves to the top of the list",
+              coordinator.store.items.first?.id == toPin)
+        check("selection follows the entry it was on",
+              coordinator.panelSelectedID == toPin)
+
+        coordinator.sendPanelKeyCommand(.moveDown)
+        let toDelete = coordinator.panelSelectedID
+        let countBeforeDelete = coordinator.store.items.count
+        coordinator.sendPanelKeyCommand(.delete)
+        check("Delete removes the selected entry",
+              coordinator.store.items.count == countBeforeDelete - 1,
+              detail: "\(countBeforeDelete) then \(coordinator.store.items.count)")
+        check("selection lands on a neighbour after deleting",
+              coordinator.panelSelectedID != nil && coordinator.panelSelectedID != toDelete)
+
         coordinator.clearHistory()
-        check("Clear All empties the list", coordinator.store.isEmpty)
-        coordinator.hidePanel()
+        check("Clear All keeps the pinned entry and drops the rest",
+              coordinator.store.items.count == 1 && coordinator.store.items.first?.isPinned == true,
+              detail: "\(coordinator.store.items.count) left")
+
+        // Checked here rather than after a single delete: 12 entries overflow the list cap and so
+        // do 11, so the panel is supposed to stay at the capped height until the content actually
+        // fits inside it again.
+        try? await Task.sleep(for: .milliseconds(150))
+        let shrunk = coordinator.panelDiagnostics
+        check("panel shrank once the content fitted again",
+              shrunk.frame.height < populated.frame.height,
+              detail: "\(Int(populated.frame.height)) pt with 12 entries, \(Int(shrunk.frame.height)) pt with 1")
+        check("shrunken panel still sits on screen", shrunk.fitsOnAScreen)
+
+        coordinator.sendPanelKeyCommand(.cancel)
+        try? await Task.sleep(for: .milliseconds(150))
+        check("Escape closes the panel", !coordinator.panelIsVisible)
 
         print("----------------------")
         if failures.isEmpty {

@@ -33,8 +33,16 @@ protocol PasteboardSource: AnyObject {
     func readSnapshot(maxBytes: Int) -> PasteboardSnapshot
 }
 
+/// Writing half, kept separate from reading so the paste path can be tested without touching
+/// the real pasteboard.
+@MainActor
+protocol PasteboardWriting: AnyObject {
+    /// Replaces the pasteboard contents with `items`, one NSPasteboardItem per entry.
+    func write(_ items: [[ClipItem.Representation]])
+}
+
 /// The real thing, wrapping `NSPasteboard.general`.
-final class SystemPasteboard: PasteboardSource {
+final class SystemPasteboard: PasteboardSource, PasteboardWriting {
     private let pasteboard: NSPasteboard
 
     init(pasteboard: NSPasteboard = .general) {
@@ -57,6 +65,23 @@ final class SystemPasteboard: PasteboardSource {
         (pasteboard.pasteboardItems ?? []).map { item in
             item.types.map(\.rawValue)
         }
+    }
+
+    func write(_ items: [[ClipItem.Representation]]) {
+        pasteboard.clearContents()
+
+        let objects = items.map { representations in
+            let item = NSPasteboardItem()
+            for representation in representations {
+                item.setData(
+                    representation.data,
+                    forType: NSPasteboard.PasteboardType(representation.type)
+                )
+            }
+            return item
+        }
+        guard !objects.isEmpty else { return }
+        pasteboard.writeObjects(objects)
     }
 
     func readSnapshot(maxBytes: Int) -> PasteboardSnapshot {

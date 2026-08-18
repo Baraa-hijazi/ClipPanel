@@ -14,9 +14,11 @@ final class AppCoordinator {
     let store = HistoryStore()
 
     private let hotKeys = HotKeyManager()
-    private let pasteboard: any PasteboardSource
+    private let pasteboard: any PasteboardSource & PasteboardWriting
     private let monitor: ClipboardMonitor
+    private let paster: PasteInjector
     private let panel: PanelController
+    private let selection = PanelSelection()
 
     let panelShortcut = GlobalShortcut.panelDefault
 
@@ -27,17 +29,35 @@ final class AppCoordinator {
     /// Mirrors the macOS 26 pasteboard privacy state so the menu and panel can react.
     private(set) var pasteboardAccess: PasteboardAccess = .systemDefault
 
-    init(pasteboard: any PasteboardSource = SystemPasteboard()) {
+    init(pasteboard: any PasteboardSource & PasteboardWriting = SystemPasteboard()) {
         self.pasteboard = pasteboard
 
+        // Built through locals rather than self, so each piece can capture the one before it
+        // while self is still being initialised.
         let store = self.store
-        self.monitor = ClipboardMonitor(
+        let selection = self.selection
+
+        let monitor = ClipboardMonitor(
             source: pasteboard,
             currentSettings: { store.settings }
         )
+        self.monitor = monitor
+
+        let paster = PasteInjector(
+            writer: pasteboard,
+            didWrite: { monitor.markOwnPaste() }
+        )
+        self.paster = paster
+
         self.panel = PanelController(
             store: store,
-            currentAccess: { pasteboard.access }
+            selection: selection,
+            currentAccess: { pasteboard.access },
+            copyToPasteboard: { item, plainTextOnly in
+                plainTextOnly
+                    ? paster.copyPlainTextToPasteboard(item)
+                    : paster.copyToPasteboard(item)
+            }
         )
     }
 
@@ -90,6 +110,13 @@ final class AppCoordinator {
 
     var panelIsVisible: Bool { panel.isVisible }
     var panelDiagnostics: PanelController.Diagnostics { panel.diagnostics }
+    var panelSelectedID: ClipItem.ID? { selection.selectedID }
+
+    /// Drives the panel's keyboard model without a real key event, for the debug self test.
+    @discardableResult
+    func sendPanelKeyCommand(_ command: PanelKeyCommand) -> Bool {
+        panel.handle(command)
+    }
 
     // MARK: - Capture controls
 

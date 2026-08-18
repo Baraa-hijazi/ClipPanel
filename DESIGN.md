@@ -424,10 +424,61 @@ rows use a plain `VStack`. Same 12 entries now produce 438 pt. The self test had
 bug because it only asserted "taller than empty", so it now asserts a real threshold. Lesson for
 later milestones: assert magnitudes, not directions.
 
-### Next: M3, full panel UI and keyboard model
+### M3 complete (2026-08-18)
 
-Section 8 is the spec and section 10 M3 the checklist: cards with hover actions, pin and delete
-affordances, full keyboard navigation (arrows, Return, option-Return, command-P, Delete, Escape),
-and first-item focus so the Win+V muscle memory of "shortcut then Return" works. `ItemRowView` and
-`HistoryRowsView` are the placeholders to grow into it. Note that the panel holds key focus while
-open (section 6.7), so keyboard handling belongs in the panel, not in a global monitor.
+Cards, hover and keyboard affordances, the full keyboard model, and the copy-only paste path.
+71 test cases passing, self test up to 31 checks and green.
+
+Files added: `Core/PasteInjector.swift`, `UI/PanelSelection.swift`, `UI/PanelActions.swift`,
+`UI/ItemCardView.swift` (replaces `ItemRowView.swift`). `PasteboardWriting` joins
+`PasteboardSource`; `PanelWindow` gained key routing; `PanelController` gained selection, row
+actions, and command handling.
+
+Keyboard model, as specified in section 8: up and down move (stopping at the ends rather than
+wrapping, like the Windows flyout), Return activates, option-Return activates as plain text,
+command-P pins, Delete removes, Escape closes. Opening always selects the newest entry so the
+Win+V habit of "shortcut, then Return" works. Keys are handled in `PanelWindow` through AppKit's
+responder chain rather than SwiftUI's `onKeyPress`, because the panel is the key window and
+AppKit is the reliable place to catch Escape, Return, and arrows before the hosting view forms an
+opinion. Command-modified keys arrive via `performKeyEquivalent`, not `keyDown`.
+
+**The paste path is deliberately half built, and that half is a shipping feature, not a stub.**
+Activating an entry writes it back to the pasteboard with every representation intact and closes
+the panel, which is exactly the copy-only degraded mode the design promises for when Accessibility
+is not granted (sections 5 and 6.2). The user presses command-V themselves. M4 adds the synthetic
+keystroke on top for the case where the permission IS granted. This means the app is genuinely
+usable from M3 onwards rather than only after M4.
+
+Two correctness details worth keeping:
+
+1. **Plain text paste uses the stored payload, never the preview.** Previews are truncated to 500
+   characters for display, so pasting from one would silently hand back a shortened version of
+   what the user copied. `ClipItem.plainTextRepresentation` reads the real representation, and a
+   test copies 900 characters to prove the full payload survives the round trip.
+2. **Pasting from history does not come back as a new capture.** `PasteInjector` calls
+   `markOwnPaste()` after every write, and a test drives monitor plus injector together to confirm
+   the round trip leaves the history at one entry rather than two.
+
+**Second sizing lesson, same shape as M2's.** The self test failed on "panel shrank after entries
+were removed" at 438 pt then 438 pt. The code was right and the assertion was wrong: 12 entries
+overflow the 400 pt list cap and so do 11, so the panel is supposed to hold at the capped height
+until the content fits again. The check now runs after Clear All, where the panel legitimately
+drops to 92 pt. Also worth remembering from the same run: piping the self test into `sed` or
+`tail` reports the pipe's exit code, not the app's, which masks a non-zero exit. Redirect to a
+file and read `$?` before filtering.
+
+### Next: M4, paste injection and permissions UX
+
+Section 10 M4 is the checklist. The work is: `AXIsProcessTrustedWithOptions` to request
+Accessibility, a `CGEvent` command-V posted to the session tap, and the onboarding plus
+Permissions settings tab around it.
+
+The sequencing is already settled by the section 6.7 measurement and must not be shortcut: the
+panel holds key focus while open, so `PasteInjector` has to hide the panel, reactivate
+`PanelController.appToRestoreFocusTo`, and only then synthesize the keystroke. Posting command-V
+while the panel still has focus would paste into nothing.
+
+Everything else stays as built: `copyToPasteboard` remains the fallback whenever
+`AXIsProcessTrusted()` is false, so the app keeps working without the permission. The manual paste
+matrix from section 11 (TextEdit, Safari form, Notes, Terminal, VS Code, Word, plus one Electron
+app) cannot be automated and needs a human at the keyboard.
