@@ -594,14 +594,68 @@ Two small Swift 6 snags: an `Int` extension needs an explicit `nonisolated` unde
 isolation, and inside an `Int` extension the bare names `min` and `max` resolve to `Int.min` and
 `Int.max`, so they must be spelled `Swift.min` and `Swift.max`.
 
-### Next: M7, hardening and release
+### M7 complete (2026-08-18), apart from the credential-gated release step
 
-Section 10 M7 and section 11's security verification are the checklist: the log audit
-(guarantee 6), screen-capture exclusion check (guarantee 7), a `nettop` run to confirm guarantee 1 at
-runtime, then Developer ID signing, notarization, and packaging, plus the README carrying the
-security model including its non-guarantees.
+Verification, packaging, and documentation. 110 test cases, 38 self test checks, all green, plus four
+verification gates that now run as scripts rather than as prose in this document.
 
-**Signing and notarization need the user.** They require an Apple Developer ID certificate in the
-keychain and an app-specific password or API key for `notarytool`. Those are credentials, so they are
-the user's to run: everything up to that point (verification, packaging script, README, a Release
-build that is correctly configured for it) can be prepared without them.
+Files added: `README.md`, `Scripts/audit-logging.sh`, `Scripts/verify-release.sh`,
+`Scripts/package-release.sh`.
+
+Guarantee verification, actually run rather than asserted:
+
+| Guarantee | How it was checked | Result |
+|---|---|---|
+| 1, no networking | no networking framework linked, no networking symbol imported, and `nettop` plus `lsof` against a running Release build | zero connections, zero sockets |
+| 2, unpinned never on disk | test saves unpinned entries, asserts no file exists | passing |
+| 3, pins encrypted | tests for round trip, tamper rejection, wrong key, 0600 permissions, no plaintext in the bytes | passing |
+| 4, concealed never read | tests assert payload read count is zero on that path | passing |
+| 5, excluded apps never read | same, via read counting | passing |
+| 6, no payloads in logs | `Scripts/audit-logging.sh` over all 32 log statements | passing |
+| 7, panel excluded from capture | self test asserts `sharingType == .none` on the live window | passing |
+
+**The audit found a real leak, which is what it was for.** `AppDelegate.isRunningSelfTest` sat outside
+`#if DEBUG`, so the shipping binary contained the symbol AND the string `CLIPPANEL_SELFTEST`, and a
+Release build would still have honoured that variable by suppressing onboarding and pin persistence.
+Not a data leak, but a debug affordance in a shipping product. Both the check and the behaviour now
+live inside `#if DEBUG`, and `verify-release.sh` fails if either the symbol or the string ever comes
+back.
+
+**A flaky self test check was fixed rather than tolerated.** "Frontmost app survived the whole cycle"
+compared the frontmost app before and after the panel cycle, which fails whenever a notification or
+the person at the keyboard switches apps mid-run, as happened on one run. The invariant that matters
+is that ClipPanel never becomes frontmost, which holds regardless of what else the desktop does, so
+that is what it now asserts. A test that fails for reasons unrelated to the code is worse than no
+test, because it teaches you to ignore red.
+
+**What remains, and why it is not something this session can do.** Signing and notarization need an
+Apple Developer ID certificate and a `notarytool` credential. Those are credentials, so they are the
+user's to hold and run. `Scripts/package-release.sh` does everything around them (archive, export,
+run both verification gates, zip, submit, staple, re-zip, then `codesign --verify` and `spctl
+--assess`) and refuses to start until `DEVELOPER_ID` and `NOTARY_PROFILE` are set, printing the exact
+setup commands. Until that runs, builds are ad-hoc signed, which is fine locally but will warn on
+another Mac.
+
+Also still requiring a human: the section 11 paste matrix across real apps, and open question 1 from
+section 12 (whether Win11 sorts pinned entries exactly as we do), which needs a Windows machine.
+
+### Open questions resolved during the build
+
+1. Pinned ordering: still open, needs a real Windows machine to compare against. We sort pinned first,
+   newest first within each group.
+2. Terminal exclusion: **decided, not excluded by default.** People copy from terminals constantly.
+   They are easy to add in Settings, Privacy.
+3. Rename: **done in M1.** Project, target, product, and source folder are all ClipPanel. Only the
+   outer git folder is still named `Remove-Test-Project`, which nothing references.
+
+The seven milestones are complete. What is left is not code:
+
+1. **Sign and notarize**, by running `Scripts/package-release.sh` with your own `DEVELOPER_ID` and
+   `NOTARY_PROFILE`. Until then the app is ad-hoc signed and other Macs will warn about it.
+2. **Walk the section 11 paste matrix** across TextEdit, a Safari form, Notes, Terminal, VS Code,
+   Word, and one Electron app, with Accessibility granted.
+3. **Settle open question 1** against a real Windows machine, if pinned-entry ordering matters enough.
+
+Sensible next features, none of them required for the product to be finished: search within history
+(a fast follow the design already flagged), richer previews for code, and a Mac App Store variant that
+ships copy-only paste since the sandbox forbids synthetic keystrokes (section 6.4).

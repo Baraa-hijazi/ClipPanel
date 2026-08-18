@@ -24,23 +24,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Onboarding is suppressed during the self test, which drives the app headlessly.
-        coordinator.start(
-            presentOnboarding: !isRunningSelfTest,
-            persistPins: !isRunningSelfTest
-        )
-
+        // The self test drives the app headlessly, so it wants no onboarding window and no keychain
+        // access. Both the check and the affordance live inside DEBUG: a Release build must not
+        // respond to an environment variable at all, and until this was wrapped the variable's name
+        // was still sitting in the shipping binary.
         #if DEBUG
+        let isSelfTest = ProcessInfo.processInfo.environment["CLIPPANEL_SELFTEST"] == "1"
+        coordinator.start(presentOnboarding: !isSelfTest, persistPins: !isSelfTest)
         SelfTest.runIfRequested(coordinator: coordinator)
+        #else
+        coordinator.start()
         #endif
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         coordinator.stop()
-    }
-
-    private var isRunningSelfTest: Bool {
-        ProcessInfo.processInfo.environment["CLIPPANEL_SELFTEST"] == "1"
     }
 
     private var isHostingTests: Bool {
