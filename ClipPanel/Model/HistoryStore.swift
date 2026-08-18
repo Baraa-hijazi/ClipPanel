@@ -140,12 +140,22 @@ final class HistoryStore {
         items.insert(item, at: insertionPoint ?? items.count)
     }
 
-    /// The limit applies to unpinned entries only. Pinning is the user saying "keep this", so
-    /// pins are never evicted to make room.
+    /// Both limits apply to unpinned entries only. Pinning is the user saying "keep this", so
+    /// pins are never evicted to make room. The byte budget always spares the newest unpinned
+    /// entry: evicting the thing that was just captured to satisfy the budget would make large
+    /// screenshots silently uncapturable again, which is the bug the image cap exists to fix.
     private func evictIfNeeded() {
         while unpinnedCount > settings.historyLimit {
             guard let oldest = items.lastIndex(where: { !$0.isPinned }) else { return }
             items.remove(at: oldest)
         }
+        while unpinnedCount > 1, unpinnedBytes > settings.maxTotalBytes {
+            guard let oldest = items.lastIndex(where: { !$0.isPinned }) else { return }
+            items.remove(at: oldest)
+        }
+    }
+
+    private var unpinnedBytes: Int {
+        items.reduce(0) { $0 + ($1.isPinned ? 0 : $1.byteSize) }
     }
 }

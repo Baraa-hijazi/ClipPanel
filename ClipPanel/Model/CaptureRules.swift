@@ -74,9 +74,11 @@ nonisolated enum CaptureRules {
         byteSize: Int,
         exceededReadLimit: Bool,
         producedUsableItem: Bool,
+        containsImage: Bool = false,
         settings: CaptureSettings
     ) -> PostReadDecision {
-        if exceededReadLimit || byteSize > settings.maxItemBytes {
+        let cap = containsImage ? settings.maxImageItemBytes : settings.maxItemBytes
+        if exceededReadLimit || byteSize > cap {
             return .skip(.tooLarge)
         }
         guard producedUsableItem else {

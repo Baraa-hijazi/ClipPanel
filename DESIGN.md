@@ -697,3 +697,25 @@ swap, while an attacker who can dump our process memory can also just read the p
 them honestly means redesigning payload storage around manually-managed buffers, which is a
 decision for a future round, recorded here so it is a decision and not an omission. Secure Enclave
 key wrapping (P3.14) stays deferred until Developer ID signing gives the app a stable identity.
+
+### Image capacity (2026-08-18, after live verification)
+
+Prompted by the direct question "does it include copied images, what about screenshots". A live test
+against the shipping build settled it: a pasteboard item carrying a 47 KB PNG plus a 10 MB TIFF was
+captured and stored as 48,801 bytes across one representation. Screenshots work, and the P0 slimming
+fix is why.
+
+Two limits then replaced the single 4 MB text cap, because "no limit" is not a real answer for
+something that holds twenty-five entries in RAM:
+
+- **Per-item cap, chosen by content.** Images are judged against `maxImageItemBytes` (64 MB default,
+  clamped 8 to 256), everything else against `maxItemBytes` (4 MB default). The monitor also READS
+  against the content-appropriate cap, so a large screenshot is never abandoned mid-read.
+- **Total unpinned byte budget**, `maxTotalBytes` (256 MB default, clamped 64 to 4096). Exceeding it
+  evicts oldest-unpinned-first, the same order the count limit uses. Pinned entries neither count
+  against it nor get evicted by it.
+
+One rule in the eviction loop is load-bearing and easy to get wrong: the budget never evicts the
+last remaining unpinned entry. Without that, a screenshot larger than the whole budget would be
+captured and then immediately evicted to satisfy the budget, reproducing the exact "screenshots
+silently vanish" bug from the other direction. A test pins this down.

@@ -113,7 +113,8 @@ final class ClipboardMonitor: NSObject {
             break
         }
 
-        let snapshot = source.readSnapshot(maxBytes: settings.maxItemBytes)
+        // Image-bearing copies read against the image cap; everything else against the text cap.
+        let snapshot = source.readSnapshot(maxBytes: settings.effectiveCap(forTypes: types))
 
         // TOCTOU guards. The type peek and the payload read are two separate reads of a live
         // pasteboard, so the contents can change between them, and "concealed copies are never
@@ -141,6 +142,7 @@ final class ClipboardMonitor: NSObject {
             byteSize: snapshot.byteSize,
             exceededReadLimit: snapshot.exceededReadLimit,
             producedUsableItem: item != nil,
+            containsImage: !snapshot.observedTypes.isDisjoint(with: PasteboardTypes.imageTypes),
             settings: settings
         )
 

@@ -65,7 +65,21 @@ private struct GeneralSettingsTab: View {
                         Text("\(megabytes) MB").tag(megabytes)
                     }
                 }
-                Text("Oversized copies are not recorded. Your clipboard still holds them, so pasting normally works as usual.")
+                Picker("Skip images larger than", selection: maxImageMegabytes) {
+                    ForEach([16, 32, 64, 128, 256], id: \.self) { megabytes in
+                        Text("\(megabytes) MB").tag(megabytes)
+                    }
+                }
+                Text("Images and screenshots get their own, larger limit. Oversized copies are not recorded; your clipboard still holds them, so pasting normally works as usual.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Picker("Keep at most", selection: maxTotalMegabytes) {
+                    ForEach([128, 256, 512, 1024], id: \.self) { megabytes in
+                        Text("\(megabytes) MB of history").tag(megabytes)
+                    }
+                }
+                Text("When history grows past this, the oldest unpinned entries are removed first.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -100,6 +114,28 @@ private struct GeneralSettingsTab: View {
             set: {
                 var settings = coordinator.captureSettings
                 settings.maxItemBytes = $0 * 1024 * 1024
+                coordinator.captureSettings = settings
+            }
+        )
+    }
+
+    private var maxImageMegabytes: Binding<Int> {
+        Binding(
+            get: { coordinator.captureSettings.maxImageItemBytes / (1024 * 1024) },
+            set: {
+                var settings = coordinator.captureSettings
+                settings.maxImageItemBytes = $0 * 1024 * 1024
+                coordinator.captureSettings = settings
+            }
+        )
+    }
+
+    private var maxTotalMegabytes: Binding<Int> {
+        Binding(
+            get: { coordinator.captureSettings.maxTotalBytes / (1024 * 1024) },
+            set: {
+                var settings = coordinator.captureSettings
+                settings.maxTotalBytes = $0 * 1024 * 1024
                 coordinator.captureSettings = settings
             }
         )

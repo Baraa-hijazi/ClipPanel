@@ -32,6 +32,21 @@ opens after a lock.
 
 Two, and the app tells you where it stands with both in Settings, Permissions.
 
+### Images and screenshots
+
+Images and screenshots are captured like anything else, with their own larger size limit (64 MB by
+default) because a Retina screenshot dwarfs any sensible text limit. Redundant representations are
+discarded first: a screenshot arrives as both PNG and TIFF, and only the PNG is kept, which is
+typically a fiftieth of the size and re-pastes everywhere the TIFF would.
+
+Two limits remain, both adjustable in Settings, General:
+
+- **Per image**, 64 MB by default. Bigger than that and the copy is not recorded; your clipboard
+  still holds it, so pasting normally works.
+- **Total history**, 256 MB by default. Past that, the oldest unpinned entries are dropped first.
+  The entry you just copied is never the one evicted, so a large screenshot cannot vanish the
+  instant it arrives.
+
 **Clipboard access (required).** macOS 26 asks before an app may read the clipboard. Choose Always
 Allow, or there is nothing for ClipPanel to show you. If you refuse, the panel says so rather than
 sitting there looking broken.
