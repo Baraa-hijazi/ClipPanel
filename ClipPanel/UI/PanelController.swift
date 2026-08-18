@@ -13,9 +13,9 @@ final class PanelController: NSObject, NSWindowDelegate {
     private let store: HistoryStore
     private let selection: PanelSelection
     private let currentAccess: () -> PasteboardAccess
-    /// Returns false when the request could not be honoured, e.g. plain text was asked for and
-    /// the entry has none.
-    private let copyToPasteboard: (ClipItem, Bool) -> Bool
+    /// Performs the paste and reports what actually happened, so the panel can react when the app
+    /// is in copy-only mode.
+    private let paste: (ClipItem, Bool, NSRunningApplication?) async -> PasteOutcome
 
     private var window: PanelWindow?
     private var isHiding = false
@@ -30,12 +30,12 @@ final class PanelController: NSObject, NSWindowDelegate {
         store: HistoryStore,
         selection: PanelSelection,
         currentAccess: @escaping () -> PasteboardAccess,
-        copyToPasteboard: @escaping (ClipItem, Bool) -> Bool
+        paste: @escaping (ClipItem, Bool, NSRunningApplication?) async -> PasteOutcome
     ) {
         self.store = store
         self.selection = selection
         self.currentAccess = currentAccess
-        self.copyToPasteboard = copyToPasteboard
+        self.paste = paste
         super.init()
     }
 
@@ -143,11 +143,21 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     private func activate(_ item: ClipItem, plainTextOnly: Bool) {
-        guard copyToPasteboard(item, plainTextOnly) else {
-            NSSound.beep()
-            return
-        }
+        // Hidden before the paste, never after: the panel is the key window while it is open, so
+        // the target app cannot take focus back until it is gone (DESIGN 6.7).
         hide()
+
+        let target = appToRestoreFocusTo
+        Task { [paste] in
+            let outcome = await paste(item, plainTextOnly, target)
+            switch outcome {
+            case .pasted, .copiedOnly:
+                break
+            case .failed:
+                // Most likely option-Return on an entry with no plain text.
+                NSSound.beep()
+            }
+        }
     }
 
     private func togglePin(_ id: ClipItem.ID) {

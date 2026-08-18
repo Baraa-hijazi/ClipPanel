@@ -88,3 +88,24 @@ final class FakePasteboard: PasteboardSource, PasteboardWriting {
         return stored
     }
 }
+
+// MARK: - Fake keystroke sender
+
+/// Stands in for Accessibility and the real keyboard, so the paste path can be tested without the
+/// permission and without stealing focus from the test run.
+final class FakeKeystrokeSender: KeystrokeSending {
+    var canSendKeystrokes = true
+    var activatedApps: [String] = []
+    var pasteCount = 0
+    /// Lets a test observe the state of the world at the moment the keystroke goes out.
+    var onSendPaste: (() -> Void)?
+
+    func activate(_ app: NSRunningApplication?) async {
+        activatedApps.append(app?.bundleIdentifier ?? "none")
+    }
+
+    func sendPaste() {
+        pasteCount += 1
+        onSendPaste?()
+    }
+}

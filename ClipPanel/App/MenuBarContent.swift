@@ -26,6 +26,9 @@ struct MenuBarContent: View {
         if coordinator.pasteboardAccess == .denied {
             Text("Clipboard access is turned off in System Settings")
         }
+        if !coordinator.canPasteAutomatically {
+            Text("Copy-only mode: picking an entry copies it, then press command-V")
+        }
 
         Divider()
 
@@ -36,6 +39,13 @@ struct MenuBarContent: View {
             coordinator.clearHistory()
         }
         .disabled(coordinator.store.unpinnedCount == 0)
+
+        Divider()
+
+        Button("Settings...") {
+            coordinator.showSettings()
+        }
+        .keyboardShortcut(",")
 
         Divider()
 

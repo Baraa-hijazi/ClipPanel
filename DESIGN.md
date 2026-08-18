@@ -467,18 +467,71 @@ drops to 92 pt. Also worth remembering from the same run: piping the self test i
 `tail` reports the pipe's exit code, not the app's, which masks a non-zero exit. Redirect to a
 file and read `$?` before filtering.
 
-### Next: M4, paste injection and permissions UX
+### M4 complete (2026-08-18)
 
-Section 10 M4 is the checklist. The work is: `AXIsProcessTrustedWithOptions` to request
-Accessibility, a `CGEvent` command-V posted to the session tap, and the onboarding plus
-Permissions settings tab around it.
+Synthetic command-V, the Accessibility permission flow, onboarding, and a Permissions settings tab.
+77 test cases passing, self test at 33 checks and green.
 
-The sequencing is already settled by the section 6.7 measurement and must not be shortcut: the
-panel holds key focus while open, so `PasteInjector` has to hide the panel, reactivate
-`PanelController.appToRestoreFocusTo`, and only then synthesize the keystroke. Posting command-V
-while the panel still has focus would paste into nothing.
+Files added: `Core/Permissions.swift`, `Core/KeystrokeSender.swift`, `Model/AppPreferences.swift`,
+`UI/PermissionsModel.swift`, `UI/PermissionRowView.swift`, `UI/HostedWindowController.swift`,
+`UI/OnboardingView.swift`, `UI/SettingsView.swift`. `PasteInjector` gained the paste flow and a
+`PasteOutcome`; the menu gained Settings and a copy-only notice.
 
-Everything else stays as built: `copyToPasteboard` remains the fallback whenever
-`AXIsProcessTrusted()` is false, so the app keeps working without the permission. The manual paste
-matrix from section 11 (TextEdit, Safari form, Notes, Terminal, VS Code, Word, plus one Electron
-app) cannot be automated and needs a human at the keyboard.
+The ordering from section 6.7 is implemented exactly as that measurement demands: `activate` hides
+the panel first, then `PasteInjector` writes the pasteboard, reactivates the recorded target app,
+waits for it to actually report active (polling, 400 ms ceiling), and only then posts command-V to
+the session tap. A test asserts the pasteboard is already written at the moment the keystroke goes
+out, because reversing those two would paste whatever was on the clipboard beforehand.
+
+**Copy-only mode is a first-class outcome, not an error.** `PasteOutcome` distinguishes `.pasted`,
+`.copiedOnly(.accessibilityNotGranted)`, `.copiedOnly(.noTargetApp)`, and `.failed`. Without
+Accessibility the entry still reaches the pasteboard and the user finishes with command-V, and the
+menu says so. Only `.failed` beeps, which in practice means option-Return on an entry with no plain
+text.
+
+Keystroke details worth keeping: flags are set explicitly to command rather than inherited, so a
+modifier the user is still physically holding (the option of option-Return) cannot turn the
+synthetic event into a different shortcut.
+
+Four platform snags hit and solved:
+
+1. **`kAXTrustedCheckOptionPrompt` is imported as a mutable global**, which Swift 6 refuses to
+   touch. The key is spelled as the literal `"AXTrustedCheckOptionPrompt"`, which is stable API.
+2. **The `@Observable` macro cannot transform a `lazy` property.** The two window controllers are
+   marked `@ObservationIgnored`, which is the intended escape hatch. They are built on first show,
+   always after `start()`, so they see the final hot key result.
+3. **Permission state has to be polled.** macOS never calls back when the user grants or revokes
+   Accessibility or pasteboard access, so `PermissionsModel.poll()` refreshes every second while a
+   window is open, and the panel re-reads on every open. Without this the status rows lie the moment
+   the user returns from System Settings.
+4. **Accessory apps must activate themselves for ordinary windows.** Onboarding and Settings
+   deliberately take focus, the opposite of the panel, so `HostedWindowController` calls
+   `NSApp.activate()` or the window opens behind everything and cannot be typed into.
+
+**Testing artifact to be aware of, it will mislead you otherwise.** The self test reports
+Accessibility as granted when run directly from a terminal. That is TCC attributing the permission
+to the *responsible* process, which is the terminal, not ClipPanel. Launched normally the app is
+attributed to itself and needs its own grant. Judge the permission from a real `open` launch, never
+from a shell-exec run.
+
+Onboarding is suppressed under `CLIPPANEL_SELFTEST=1`, and capture is already suppressed when
+hosting tests, so neither automated path pops a window or a system prompt.
+
+Still needs a human: the section 11 paste matrix (TextEdit, Safari form, Notes, Terminal, VS Code,
+Word, one Electron app), plus granting Accessibility once and confirming a real paste lands.
+
+### Next: M5, encrypted pin persistence
+
+Section 10 M5 is the checklist: `Persistence/CryptoBox.swift`, `Persistence/KeychainKey.swift`,
+`Persistence/PinStore.swift`, wired into `HistoryStore` so pins survive a restart and unpinned
+entries still never touch disk.
+
+Constraints that must hold: AES-256-GCM, key in the login keychain as a generic password with
+`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` so it is never synced or backed up off-device,
+atomic rewrite on every pin change, and a corrupt or undecryptable file renamed aside rather than
+crashing or silently discarding.
+
+Note for the tests: they must NOT touch the real keychain. An ad-hoc signed test host gets a fresh
+code identity on every rebuild, which makes macOS prompt for keychain access and would hang the
+run. Test `CryptoBox` and `PinStore` with an injected key, and leave `KeychainKey` to manual
+verification.

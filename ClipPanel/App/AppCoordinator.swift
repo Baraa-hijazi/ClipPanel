@@ -8,10 +8,11 @@ import Observation
 import OSLog
 
 /// Wires the pieces together and owns them for the lifetime of the process.
-/// M4 adds the paste injector here; M5 adds the encrypted pin store.
+/// M5 adds the encrypted pin store; M6 fills in the rest of Settings.
 @Observable
 final class AppCoordinator {
     let store = HistoryStore()
+    let permissions: PermissionsModel
 
     private let hotKeys = HotKeyManager()
     private let pasteboard: any PasteboardSource & PasteboardWriting
@@ -23,19 +24,50 @@ final class AppCoordinator {
     let panelShortcut = GlobalShortcut.panelDefault
 
     /// True when the shortcut could not be claimed, usually because another app owns it.
-    /// The menu bar item stays the way in, and M6 surfaces this in Settings.
+    /// The menu bar item stays the way in.
     private(set) var hotKeyUnavailable = false
 
-    /// Mirrors the macOS 26 pasteboard privacy state so the menu and panel can react.
-    private(set) var pasteboardAccess: PasteboardAccess = .systemDefault
+    // @ObservationIgnored because the Observable macro cannot transform a lazy property, and these
+    // are windows rather than state anything observes. Both are built on first show, which is
+    // always after start(), so they see the final hot key registration result.
+    @ObservationIgnored
+    private lazy var onboardingWindow: HostedWindowController<OnboardingView> = {
+        let permissions = self.permissions
+        let shortcut = self.panelShortcut
+        return HostedWindowController(title: "Welcome to ClipPanel") { [weak self] in
+            OnboardingView(permissions: permissions, shortcut: shortcut) {
+                self?.finishOnboarding()
+            }
+        }
+    }()
 
-    init(pasteboard: any PasteboardSource & PasteboardWriting = SystemPasteboard()) {
+    @ObservationIgnored
+    private lazy var settingsWindow: HostedWindowController<SettingsView> = {
+        let permissions = self.permissions
+        let shortcut = self.panelShortcut
+        let hotKeyUnavailable = self.hotKeyUnavailable
+        return HostedWindowController(title: "ClipPanel Settings") {
+            SettingsView(
+                permissions: permissions,
+                shortcut: shortcut,
+                hotKeyUnavailable: hotKeyUnavailable
+            )
+        }
+    }()
+
+    init(
+        pasteboard: any PasteboardSource & PasteboardWriting = SystemPasteboard(),
+        keystrokes: any KeystrokeSending = SystemKeystrokeSender()
+    ) {
         self.pasteboard = pasteboard
 
-        // Built through locals rather than self, so each piece can capture the one before it
-        // while self is still being initialised.
+        // Built through locals rather than self, so each piece can capture the one before it while
+        // self is still being initialised.
         let store = self.store
         let selection = self.selection
+
+        let permissions = PermissionsModel(readPasteboardAccess: { pasteboard.access })
+        self.permissions = permissions
 
         let monitor = ClipboardMonitor(
             source: pasteboard,
@@ -45,6 +77,7 @@ final class AppCoordinator {
 
         let paster = PasteInjector(
             writer: pasteboard,
+            keystrokes: keystrokes,
             didWrite: { monitor.markOwnPaste() }
         )
         self.paster = paster
@@ -53,26 +86,24 @@ final class AppCoordinator {
             store: store,
             selection: selection,
             currentAccess: { pasteboard.access },
-            copyToPasteboard: { item, plainTextOnly in
-                plainTextOnly
-                    ? paster.copyPlainTextToPasteboard(item)
-                    : paster.copyToPasteboard(item)
+            paste: { item, plainTextOnly, targetApp in
+                await paster.paste(item, plainTextOnly: plainTextOnly, into: targetApp)
             }
         )
     }
 
-    func start() {
+    func start(presentOnboarding: Bool = true) {
         monitor.onCapture = { [weak self] item in
             guard let self else { return }
             store.record(item)
             panel.refreshSizeIfVisible()
-            refreshPasteboardAccess()
+            permissions.refresh()
         }
         monitor.onSkip = { [weak self] _ in
-            self?.refreshPasteboardAccess()
+            self?.permissions.refresh()
         }
         monitor.start()
-        refreshPasteboardAccess()
+        permissions.refresh()
 
         let registered = hotKeys.register(shortcut: panelShortcut) { [weak self] in
             self?.togglePanel()
@@ -84,8 +115,12 @@ final class AppCoordinator {
         } else {
             Log.app.error("Hot key unavailable; panel reachable from the menu bar only")
         }
-        if pasteboardAccess == .denied {
+        if permissions.pasteboardAccess == .denied {
             Log.app.error("Pasteboard access denied; capture is inert until the user allows it")
+        }
+
+        if presentOnboarding, !AppPreferences.hasCompletedOnboarding {
+            onboardingWindow.show()
         }
     }
 
@@ -97,10 +132,13 @@ final class AppCoordinator {
     // MARK: - Panel
 
     func togglePanel() {
+        // Cheap, and the only reliable way to notice a permission change: macOS never calls back.
+        permissions.refresh()
         panel.toggle()
     }
 
     func showPanel() {
+        permissions.refresh()
         panel.show()
     }
 
@@ -118,9 +156,29 @@ final class AppCoordinator {
         panel.handle(command)
     }
 
+    // MARK: - Windows
+
+    func showSettings() {
+        permissions.refresh()
+        settingsWindow.show()
+    }
+
+    func showOnboarding() {
+        onboardingWindow.show()
+    }
+
+    private func finishOnboarding() {
+        AppPreferences.hasCompletedOnboarding = true
+        onboardingWindow.close()
+    }
+
     // MARK: - Capture controls
 
     var isPaused: Bool { store.settings.isPaused }
+    var pasteboardAccess: PasteboardAccess { permissions.pasteboardAccess }
+    /// False means copy-only mode, which works, just with one extra keystroke from the user.
+    var canPasteAutomatically: Bool { permissions.accessibilityGranted }
+    var monitorIsRunning: Bool { monitor.isRunning }
 
     func togglePause() {
         store.settings.isPaused.toggle()
@@ -130,14 +188,5 @@ final class AppCoordinator {
     func clearHistory() {
         store.clearUnpinned()
         panel.refreshSizeIfVisible()
-    }
-
-    var monitorIsRunning: Bool { monitor.isRunning }
-
-    private func refreshPasteboardAccess() {
-        let current = pasteboard.access
-        guard current != pasteboardAccess else { return }
-        pasteboardAccess = current
-        Log.app.info("Pasteboard access now \(current.rawValue, privacy: .public)")
     }
 }

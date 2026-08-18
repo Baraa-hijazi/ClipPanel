@@ -24,7 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        coordinator.start()
+        // Onboarding is suppressed during the self test, which drives the app headlessly.
+        coordinator.start(presentOnboarding: !isRunningSelfTest)
 
         #if DEBUG
         SelfTest.runIfRequested(coordinator: coordinator)
@@ -33,6 +34,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         coordinator.stop()
+    }
+
+    private var isRunningSelfTest: Bool {
+        ProcessInfo.processInfo.environment["CLIPPANEL_SELFTEST"] == "1"
     }
 
     private var isHostingTests: Bool {

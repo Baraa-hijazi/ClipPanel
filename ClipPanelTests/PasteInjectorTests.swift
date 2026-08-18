@@ -3,6 +3,7 @@
 //  ClipPanelTests
 //
 
+import AppKit
 import Foundation
 import Testing
 
@@ -11,10 +12,14 @@ import Testing
 @Suite("Paste injector")
 @MainActor
 struct PasteInjectorTests {
-    private func makeInjector(_ pasteboard: FakePasteboard) -> (PasteInjector, Box<Int>) {
+    private func makeInjector(
+        _ pasteboard: FakePasteboard,
+        keystrokes: FakeKeystrokeSender = FakeKeystrokeSender()
+    ) -> (PasteInjector, Box<Int>) {
         let writeCount = Box(0)
         let injector = PasteInjector(
             writer: pasteboard,
+            keystrokes: keystrokes,
             didWrite: { writeCount.value += 1 }
         )
         return (injector, writeCount)
@@ -130,7 +135,11 @@ struct PasteInjectorTests {
             frontmostBundleID: { "com.apple.TextEdit" }
         )
         monitor.onCapture = { store.record($0) }
-        let injector = PasteInjector(writer: pasteboard, didWrite: { monitor.markOwnPaste() })
+        let injector = PasteInjector(
+            writer: pasteboard,
+            keystrokes: FakeKeystrokeSender(),
+            didWrite: { monitor.markOwnPaste() }
+        )
 
         pasteboard.put(textSnapshot("original"))
         monitor.poll()
@@ -141,5 +150,106 @@ struct PasteInjectorTests {
 
         #expect(monitor.poll() == .ownPaste)
         #expect(store.items.count == 1)
+    }
+
+    // MARK: - Paste flow
+
+    @Test("With Accessibility granted, the entry is pasted into the target app")
+    func pastesWhenTrusted() async {
+        let pasteboard = FakePasteboard()
+        let sender = FakeKeystrokeSender()
+        let (injector, _) = makeInjector(pasteboard, keystrokes: sender)
+        let item = ItemFactory.make(from: textSnapshot("paste me"), sourceBundleID: nil)!
+
+        let outcome = await injector.paste(item, plainTextOnly: false, into: .current)
+
+        #expect(outcome == .pasted)
+        #expect(pasteboard.writes.count == 1)
+        #expect(sender.pasteCount == 1)
+        #expect(sender.activatedApps == [NSRunningApplication.current.bundleIdentifier ?? "none"])
+    }
+
+    @Test("The pasteboard is written before the keystroke goes out")
+    func writesBeforeKeystroke() async {
+        let pasteboard = FakePasteboard()
+        let sender = FakeKeystrokeSender()
+        let (injector, _) = makeInjector(pasteboard, keystrokes: sender)
+        let item = ItemFactory.make(from: textSnapshot("order matters"), sourceBundleID: nil)!
+
+        let writesAtPasteTime = Box(-1)
+        sender.onSendPaste = { writesAtPasteTime.value = pasteboard.writes.count }
+
+        _ = await injector.paste(item, plainTextOnly: false, into: .current)
+
+        // Otherwise command-V would paste whatever was on the clipboard beforehand.
+        #expect(writesAtPasteTime.value == 1)
+    }
+
+    @Test("Without Accessibility, the entry is still copied and no keystroke is sent")
+    func fallsBackToCopyOnly() async {
+        let pasteboard = FakePasteboard()
+        let sender = FakeKeystrokeSender()
+        sender.canSendKeystrokes = false
+        let (injector, _) = makeInjector(pasteboard, keystrokes: sender)
+        let item = ItemFactory.make(from: textSnapshot("copy me"), sourceBundleID: nil)!
+
+        let outcome = await injector.paste(item, plainTextOnly: false, into: .current)
+
+        #expect(outcome == .copiedOnly(.accessibilityNotGranted))
+        // The point of the fallback: the user can still paste manually.
+        #expect(pasteboard.writes.count == 1)
+        #expect(sender.pasteCount == 0)
+        #expect(sender.activatedApps.isEmpty)
+    }
+
+    @Test("With no recorded target app, the entry is copied rather than pasted into nothing")
+    func fallsBackWithoutTarget() async {
+        let pasteboard = FakePasteboard()
+        let sender = FakeKeystrokeSender()
+        let (injector, _) = makeInjector(pasteboard, keystrokes: sender)
+        let item = ItemFactory.make(from: textSnapshot("no target"), sourceBundleID: nil)!
+
+        let outcome = await injector.paste(item, plainTextOnly: false, into: nil)
+
+        #expect(outcome == .copiedOnly(.noTargetApp))
+        #expect(pasteboard.writes.count == 1)
+        #expect(sender.pasteCount == 0)
+    }
+
+    @Test("Plain text paste on an entry with no text writes nothing and reports why")
+    func plainTextFailureIsReported() async {
+        let pasteboard = FakePasteboard()
+        let sender = FakeKeystrokeSender()
+        let (injector, _) = makeInjector(pasteboard, keystrokes: sender)
+
+        let snapshot = PasteboardSnapshot(items: [[
+            ClipItem.Representation(type: PasteboardTypes.png, data: pngData(width: 8, height: 8)),
+        ]])
+        let item = ItemFactory.make(from: snapshot, sourceBundleID: nil)!
+
+        let outcome = await injector.paste(item, plainTextOnly: true, into: .current)
+
+        #expect(outcome == .failed(.entryHasNoPlainText))
+        #expect(pasteboard.writes.isEmpty)
+        #expect(sender.pasteCount == 0)
+    }
+
+    @Test("Plain text paste sends the keystroke once the text is on the pasteboard")
+    func plainTextPasteReachesKeystroke() async {
+        let pasteboard = FakePasteboard()
+        let sender = FakeKeystrokeSender()
+        let (injector, _) = makeInjector(pasteboard, keystrokes: sender)
+
+        let snapshot = PasteboardSnapshot(items: [[
+            representation(PasteboardTypes.plainText, "plain"),
+            representation(PasteboardTypes.rtf, "styled"),
+        ]])
+        let item = ItemFactory.make(from: snapshot, sourceBundleID: nil)!
+
+        let outcome = await injector.paste(item, plainTextOnly: true, into: .current)
+
+        #expect(outcome == .pasted)
+        #expect(pasteboard.writes[0].flatMap { $0 }.map(\.type) == [PasteboardTypes.plainText])
+        #expect(sender.pasteCount == 1)
     }
 }

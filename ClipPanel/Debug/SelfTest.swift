@@ -34,7 +34,7 @@ enum SelfTest {
             if !passed { failures.append(label) }
         }
 
-        print("ClipPanel self test, M1 through M3")
+        print("ClipPanel self test, M1 through M4")
         print("----------------------")
 
         // Let the app finish launching so activation policy and the menu bar item settle.
@@ -185,6 +185,22 @@ enum SelfTest {
         coordinator.sendPanelKeyCommand(.cancel)
         try? await Task.sleep(for: .milliseconds(150))
         check("Escape closes the panel", !coordinator.panelIsVisible)
+
+        // MARK: M4, paste path and permissions
+
+        print("")
+        print("M4 paste path and permissions")
+        print("INFO  Accessibility granted: \(AccessibilityPermission.isTrusted) "
+              + "(false simply means copy-only mode)")
+        check("permission state agrees with the system",
+              coordinator.canPasteAutomatically == AccessibilityPermission.isTrusted)
+        check("permissions model mirrors pasteboard access",
+              coordinator.permissions.pasteboardAccess == coordinator.pasteboardAccess,
+              detail: coordinator.pasteboardAccess.rawValue)
+        // The paste path itself is covered by unit tests with fakes: exercising it here would write
+        // to the real pasteboard and clobber whatever the user had copied.
+        print("INFO  paste flow itself is covered by PasteInjectorTests, not here, to avoid "
+              + "touching the real clipboard")
 
         print("----------------------")
         if failures.isEmpty {
