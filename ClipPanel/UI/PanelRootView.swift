@@ -72,7 +72,8 @@ struct PanelRootView: View {
                 HistoryRowsView(
                     items: store.items,
                     selectedID: selection.selectedID,
-                    actions: actions
+                    actions: actions,
+                    showsCaptions: store.showSourceAppCaptions
                 )
             }
             .frame(height: listHeight)

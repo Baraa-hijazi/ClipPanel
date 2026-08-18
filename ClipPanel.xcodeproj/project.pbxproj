@@ -6,8 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		0240A00830345200008BE264 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0240095D303451A5008BE264 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 02400964303451A5008BE264;
+			remoteInfo = ClipPanel;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
-		02400965303451A5008BE264 /* ClipPanel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ClipPanel.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		02400965303451A5008BE264 /* ClipPanel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClipPanel.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0240A00230345200008BE264 /* ClipPanelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClipPanelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -47,6 +57,7 @@
 			children = (
 				02400967303451A5008BE264 /* ClipPanel */,
 				02400966303451A5008BE264 /* Products */,
+				02B4306B30346B6A0042B43E /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -59,12 +70,20 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		02B4306B30346B6A0042B43E /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				0240A00330345200008BE264 /* ClipPanelTests */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		02400964303451A5008BE264 /* ClipPanel */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 02400970303451A6008BE264 /* Build configuration list for PBXNativeTarget ClipPanel */;
+			buildConfigurationList = 02400970303451A6008BE264 /* Build configuration list for PBXNativeTarget "ClipPanel" */;
 			buildPhases = (
 				02400961303451A5008BE264 /* Sources */,
 				02400962303451A5008BE264 /* Frameworks */,
@@ -109,24 +128,6 @@
 		};
 /* End PBXNativeTarget section */
 
-/* Begin PBXContainerItemProxy section */
-		0240A00830345200008BE264 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 0240095D303451A5008BE264 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 02400964303451A5008BE264;
-			remoteInfo = ClipPanel;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXTargetDependency section */
-		0240A00730345200008BE264 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 02400964303451A5008BE264 /* ClipPanel */;
-			targetProxy = 0240A00830345200008BE264 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin PBXProject section */
 		0240095D303451A5008BE264 /* Project object */ = {
 			isa = PBXProject;
@@ -140,7 +141,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 02400960303451A5008BE264 /* Build configuration list for PBXProject ClipPanel */;
+			buildConfigurationList = 02400960303451A5008BE264 /* Build configuration list for PBXProject "ClipPanel" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -193,6 +194,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0240A00730345200008BE264 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 02400964303451A5008BE264 /* ClipPanel */;
+			targetProxy = 0240A00830345200008BE264 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0240096E303451A6008BE264 /* Debug */ = {
@@ -325,7 +334,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.baraahijazi.ClipPanel";
+				PRODUCT_BUNDLE_IDENTIFIER = com.baraahijazi.ClipPanel;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -354,7 +363,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.baraahijazi.ClipPanel";
+				PRODUCT_BUNDLE_IDENTIFIER = com.baraahijazi.ClipPanel;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -377,7 +386,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.baraahijazi.ClipPanelTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.baraahijazi.ClipPanelTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
@@ -399,7 +408,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.baraahijazi.ClipPanelTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.baraahijazi.ClipPanelTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
@@ -414,7 +423,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		02400960303451A5008BE264 /* Build configuration list for PBXProject ClipPanel */ = {
+		02400960303451A5008BE264 /* Build configuration list for PBXProject "ClipPanel" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0240096E303451A6008BE264 /* Debug */,
@@ -423,7 +432,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		02400970303451A6008BE264 /* Build configuration list for PBXNativeTarget ClipPanel */ = {
+		02400970303451A6008BE264 /* Build configuration list for PBXNativeTarget "ClipPanel" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				02400971303451A6008BE264 /* Debug */,

@@ -14,6 +14,7 @@ struct HistoryRowsView: View {
     let items: [ClipItem]
     var selectedID: ClipItem.ID?
     var actions: PanelActions = .inert
+    var showsCaptions = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,7 +22,8 @@ struct HistoryRowsView: View {
                 ItemCardView(
                     item: item,
                     isSelected: item.id == selectedID,
-                    actions: actions
+                    actions: actions,
+                    showsCaption: showsCaptions
                 )
                 .id(item.id)
 

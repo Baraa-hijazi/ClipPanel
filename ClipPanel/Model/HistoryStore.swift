@@ -25,6 +25,10 @@ final class HistoryStore {
 
     var settings = CaptureSettings()
 
+    /// Display preference rather than a capture rule, which is why it lives here and not in
+    /// CaptureSettings (that struct feeds the pure capture logic).
+    var showSourceAppCaptions = true
+
     /// Called whenever the pinned set changes, so persistence stays somebody else's problem.
     /// Nil means nothing is persisted, which is how the tests and previews run.
     @ObservationIgnored
@@ -85,6 +89,11 @@ final class HistoryStore {
         let hadPinned = pinnedCount > 0
         items.removeAll()
         if hadPinned { pinnedItemsChanged() }
+    }
+
+    /// Applies the current limit right now, for when the user lowers it in Settings.
+    func enforceLimit() {
+        evictIfNeeded()
     }
 
     private func pinnedItemsChanged() {

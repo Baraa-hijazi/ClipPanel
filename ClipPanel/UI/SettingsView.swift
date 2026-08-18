@@ -2,27 +2,203 @@
 //  SettingsView.swift
 //  ClipPanel
 //
-//  M4 ships the Permissions tab, which is the one that can leave the app not working. General and
-//  Privacy arrive with M6, along with the hot key recorder and the exclusion list editor.
-//
 
 import SwiftUI
 
 struct SettingsView: View {
-    let permissions: PermissionsModel
-    let shortcut: GlobalShortcut
-    let hotKeyUnavailable: Bool
+    /// Weak because the window outlives nothing but is owned by the coordinator; a strong reference
+    /// here would be a cycle. A nil coordinator only happens during teardown.
+    weak var coordinator: AppCoordinator?
 
     var body: some View {
         TabView {
-            permissionsTab
-                .tabItem { Label("Permissions", systemImage: "lock.shield") }
+            if let coordinator {
+                GeneralSettingsTab(coordinator: coordinator)
+                    .tabItem { Label("General", systemImage: "gearshape") }
+
+                PrivacySettingsTab(coordinator: coordinator)
+                    .tabItem { Label("Privacy", systemImage: "hand.raised") }
+
+                PermissionsSettingsTab(coordinator: coordinator)
+                    .tabItem { Label("Permissions", systemImage: "lock.shield") }
+            }
         }
-        .frame(width: 520, height: 380)
-        .task { await permissions.poll() }
+        .frame(width: 540, height: 420)
+    }
+}
+
+// MARK: - General
+
+private struct GeneralSettingsTab: View {
+    let coordinator: AppCoordinator
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Shortcut") {
+                    HotKeyRecorderView(
+                        shortcut: coordinator.panelShortcut,
+                        onRecord: { coordinator.updateShortcut($0) },
+                        onReset: { coordinator.resetShortcut() }
+                    )
+                }
+                if coordinator.hotKeyUnavailable {
+                    Text("That combination is already taken by another app, so the previous one is still in use. Open ClipPanel from the menu bar in the meantime.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Section {
+                Picker("Keep", selection: historyLimit) {
+                    ForEach([10, 25, 50, 100], id: \.self) { count in
+                        Text("\(count) entries").tag(count)
+                    }
+                }
+                Text("Pinned entries are kept as well, and do not count towards this.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Picker("Skip copies larger than", selection: maxMegabytes) {
+                    ForEach([1, 4, 8, 16, 32], id: \.self) { megabytes in
+                        Text("\(megabytes) MB").tag(megabytes)
+                    }
+                }
+                Text("Oversized copies are not recorded. Your clipboard still holds them, so pasting normally works as usual.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Show which app a copy came from", isOn: showCaptions)
+                Toggle("Open ClipPanel at login", isOn: launchAtLogin)
+                if coordinator.launchAtLoginNeedsApproval {
+                    Text("Waiting for approval in System Settings, Login Items.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+        .formStyle(.grouped)
     }
 
-    private var permissionsTab: some View {
+    private var historyLimit: Binding<Int> {
+        Binding(
+            get: { coordinator.captureSettings.historyLimit },
+            set: {
+                var settings = coordinator.captureSettings
+                settings.historyLimit = $0
+                coordinator.captureSettings = settings
+            }
+        )
+    }
+
+    private var maxMegabytes: Binding<Int> {
+        Binding(
+            get: { coordinator.captureSettings.maxItemBytes / (1024 * 1024) },
+            set: {
+                var settings = coordinator.captureSettings
+                settings.maxItemBytes = $0 * 1024 * 1024
+                coordinator.captureSettings = settings
+            }
+        )
+    }
+
+    private var showCaptions: Binding<Bool> {
+        Binding(
+            get: { coordinator.showSourceAppCaptions },
+            set: { coordinator.showSourceAppCaptions = $0 }
+        )
+    }
+
+    private var launchAtLogin: Binding<Bool> {
+        Binding(
+            get: { coordinator.launchAtLogin },
+            set: { coordinator.launchAtLogin = $0 }
+        )
+    }
+}
+
+// MARK: - Privacy
+
+private struct PrivacySettingsTab: View {
+    let coordinator: AppCoordinator
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Pause saving copies", isOn: paused)
+                Text("Nothing is recorded while paused, and a copy made during a pause is not collected afterwards either.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Skip copies apps mark as temporary", isOn: skipTransient)
+                Text("Some apps flag a copy as transient or automatic. Off means those get saved too.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Clear history when the screen locks", isOn: clearOnLock)
+                Text("Pinned entries are kept. Off by default, because losing history at every lock is usually the worse trade.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Never save copies from these apps") {
+                ExcludedAppsView(
+                    excluded: coordinator.captureSettings.excludedBundleIDs,
+                    onAdd: { coordinator.exclude(bundleID: $0) },
+                    onRemove: { coordinator.stopExcluding(bundleID: $0) }
+                )
+                Text("Copies marked secret by a password manager are never saved regardless of this list, and cannot be, which is why most password managers do not need to be here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var paused: Binding<Bool> {
+        Binding(
+            get: { coordinator.captureSettings.isPaused },
+            set: {
+                var settings = coordinator.captureSettings
+                settings.isPaused = $0
+                coordinator.captureSettings = settings
+            }
+        )
+    }
+
+    private var skipTransient: Binding<Bool> {
+        Binding(
+            get: { coordinator.captureSettings.skipTransientAndAutoGenerated },
+            set: {
+                var settings = coordinator.captureSettings
+                settings.skipTransientAndAutoGenerated = $0
+                coordinator.captureSettings = settings
+            }
+        )
+    }
+
+    private var clearOnLock: Binding<Bool> {
+        Binding(
+            get: { coordinator.clearOnScreenLock },
+            set: { coordinator.clearOnScreenLock = $0 }
+        )
+    }
+}
+
+// MARK: - Permissions
+
+private struct PermissionsSettingsTab: View {
+    let coordinator: AppCoordinator
+
+    private var permissions: PermissionsModel { coordinator.permissions }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             PermissionRowView(
                 title: "Clipboard access",
@@ -53,11 +229,11 @@ struct SettingsView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Shortcut")
+                Text("Pinned entries")
                     .font(.headline)
-                Text(hotKeyUnavailable
-                     ? "\(shortcut.description) could not be registered, because another app is already using it. Open ClipPanel from the menu bar instead. A shortcut picker arrives in a later version."
-                     : "\(shortcut.description) opens the clipboard. A shortcut picker arrives in a later version.")
+                Text(coordinator.pinsPersist
+                     ? "Encrypted on this Mac, with the key in your login keychain. They do not sync to other devices, by design."
+                     : "Not being saved this session, because the keychain could not be reached. Pins still work until you quit.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -67,6 +243,7 @@ struct SettingsView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .task { await permissions.poll() }
     }
 
     private var pasteboardState: PermissionRowView.State {

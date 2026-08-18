@@ -23,12 +23,17 @@ final class AppCoordinator {
 
     @ObservationIgnored
     private var pinStore: PinStore?
+    @ObservationIgnored
+    private lazy var lockObserver = ScreenLockObserver { [weak self] in
+        self?.store.removeEverything()
+        self?.hidePanel()
+    }
     /// False when the keychain or the file could not be reached. Pins still work for the session,
     /// they just will not survive a restart, and the user is told rather than being left to
     /// discover it after a reboot.
     private(set) var pinsPersist = false
 
-    let panelShortcut = GlobalShortcut.panelDefault
+    private(set) var panelShortcut = AppPreferences.loadShortcut()
 
     /// True when the shortcut could not be claimed, usually because another app owns it.
     /// The menu bar item stays the way in.
@@ -50,15 +55,10 @@ final class AppCoordinator {
 
     @ObservationIgnored
     private lazy var settingsWindow: HostedWindowController<SettingsView> = {
-        let permissions = self.permissions
-        let shortcut = self.panelShortcut
-        let hotKeyUnavailable = self.hotKeyUnavailable
-        return HostedWindowController(title: "ClipPanel Settings") {
-            SettingsView(
-                permissions: permissions,
-                shortcut: shortcut,
-                hotKeyUnavailable: hotKeyUnavailable
-            )
+        // Takes the coordinator rather than a snapshot, so every tab reflects live state: a shortcut
+        // the user just rebound, a permission they just granted, a setting they just changed.
+        HostedWindowController(title: "ClipPanel Settings") { [weak self] in
+            SettingsView(coordinator: self)
         }
     }()
 
@@ -75,6 +75,9 @@ final class AppCoordinator {
 
         let permissions = PermissionsModel(readPasteboardAccess: { pasteboard.access })
         self.permissions = permissions
+
+        store.settings = AppPreferences.loadCaptureSettings()
+        store.showSourceAppCaptions = AppPreferences.showSourceAppCaptions
 
         let monitor = ClipboardMonitor(
             source: pasteboard,
@@ -114,10 +117,7 @@ final class AppCoordinator {
         monitor.start()
         permissions.refresh()
 
-        let registered = hotKeys.register(shortcut: panelShortcut) { [weak self] in
-            self?.togglePanel()
-        }
-        hotKeyUnavailable = !registered
+        let registered = registerHotKey(panelShortcut)
 
         if registered {
             Log.app.info("ClipPanel ready")
@@ -128,6 +128,10 @@ final class AppCoordinator {
             Log.app.error("Pasteboard access denied; capture is inert until the user allows it")
         }
 
+        if AppPreferences.clearOnScreenLock {
+            lockObserver.start()
+        }
+
         if presentOnboarding, !AppPreferences.hasCompletedOnboarding {
             onboardingWindow.show()
         }
@@ -136,6 +140,84 @@ final class AppCoordinator {
     func stop() {
         monitor.stop()
         hotKeys.unregister()
+        lockObserver.stop()
+    }
+
+    // MARK: - Settings
+
+    var captureSettings: CaptureSettings {
+        get { store.settings }
+        set {
+            store.settings = newValue
+            AppPreferences.save(newValue)
+            // A smaller history has to take effect immediately rather than at the next capture.
+            store.enforceLimit()
+            panel.refreshSizeIfVisible()
+        }
+    }
+
+    var showSourceAppCaptions: Bool {
+        get { store.showSourceAppCaptions }
+        set {
+            store.showSourceAppCaptions = newValue
+            AppPreferences.showSourceAppCaptions = newValue
+            panel.refreshSizeIfVisible()
+        }
+    }
+
+    var clearOnScreenLock: Bool {
+        get { AppPreferences.clearOnScreenLock }
+        set {
+            AppPreferences.clearOnScreenLock = newValue
+            newValue ? lockObserver.start() : lockObserver.stop()
+        }
+    }
+
+    var launchAtLogin: Bool {
+        get { LoginItem.isEnabled }
+        set { LoginItem.setEnabled(newValue) }
+    }
+
+    var launchAtLoginNeedsApproval: Bool { LoginItem.needsApproval }
+
+    func exclude(bundleID: String) {
+        var settings = captureSettings
+        settings.excludedBundleIDs.insert(bundleID)
+        captureSettings = settings
+    }
+
+    func stopExcluding(bundleID: String) {
+        var settings = captureSettings
+        settings.excludedBundleIDs.remove(bundleID)
+        captureSettings = settings
+    }
+
+    /// Rebinds the panel shortcut, keeping the old one if the new combination is already taken.
+    @discardableResult
+    func updateShortcut(_ shortcut: GlobalShortcut) -> Bool {
+        let previous = panelShortcut
+        guard registerHotKey(shortcut) else {
+            Log.app.error("Could not claim the new shortcut; keeping the previous one")
+            registerHotKey(previous)
+            return false
+        }
+        panelShortcut = shortcut
+        AppPreferences.save(shortcut)
+        return true
+    }
+
+    func resetShortcut() {
+        AppPreferences.resetShortcut()
+        updateShortcut(.panelDefault)
+    }
+
+    @discardableResult
+    private func registerHotKey(_ shortcut: GlobalShortcut) -> Bool {
+        let registered = hotKeys.register(shortcut: shortcut) { [weak self] in
+            self?.togglePanel()
+        }
+        hotKeyUnavailable = !registered
+        return registered
     }
 
     /// Restores pinned entries and keeps them saved from here on.

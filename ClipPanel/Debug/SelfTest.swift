@@ -34,7 +34,7 @@ enum SelfTest {
             if !passed { failures.append(label) }
         }
 
-        print("ClipPanel self test, M1 through M5")
+        print("ClipPanel self test, M1 through M6")
         print("----------------------")
 
         // Let the app finish launching so activation policy and the menu bar item settle.
@@ -214,6 +214,27 @@ enum SelfTest {
             print("INFO  pins would live at \(location.path)")
         }
         print("INFO  crypto and pin store behaviour is covered by CryptoBoxTests and PinStoreTests")
+
+        // MARK: M6, settings and polish
+
+        print("")
+        print("M6 settings and polish")
+        check("app icon is compiled into the bundle",
+              Bundle.main.url(forResource: "AppIcon", withExtension: "icns") != nil)
+        check("settings loaded from preferences are within the documented bounds",
+              AppPreferences.historyLimitRange.contains(coordinator.captureSettings.historyLimit)
+                  && coordinator.captureSettings.maxItemBytes >= 1024 * 1024,
+              detail: "\(coordinator.captureSettings.historyLimit) entries, "
+                      + "\(coordinator.captureSettings.maxItemBytes / (1024 * 1024)) MB cap")
+        check("a shortcut is registered and rendered",
+              !coordinator.panelShortcut.description.isEmpty,
+              detail: coordinator.panelShortcut.description)
+        print("INFO  launch at login: \(LoginItem.isEnabled ? "on" : "off")"
+              + (LoginItem.needsApproval ? " (awaiting approval in System Settings)" : ""))
+        print("INFO  clear on screen lock: \(AppPreferences.clearOnScreenLock ? "on" : "off")")
+        check("excluded apps list is populated with the shipped defaults",
+              !coordinator.captureSettings.excludedBundleIDs.isEmpty,
+              detail: "\(coordinator.captureSettings.excludedBundleIDs.count) apps")
 
         print("----------------------")
         if failures.isEmpty {

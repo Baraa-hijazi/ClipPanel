@@ -12,6 +12,7 @@ struct ItemCardView: View {
     let item: ClipItem
     let isSelected: Bool
     let actions: PanelActions
+    var showsCaption = true
 
     @State private var isHovering = false
 
@@ -22,7 +23,9 @@ struct ItemCardView: View {
             pinIndicator
             VStack(alignment: .leading, spacing: 4) {
                 content
-                caption
+                if showsCaption {
+                    caption
+                }
             }
             Spacer(minLength: 0)
             if showsActions {
