@@ -11,6 +11,7 @@ struct PanelActions {
     var activate: (ClipItem) -> Void
     var activateAsPlainText: (ClipItem) -> Void
     var togglePin: (ClipItem.ID) -> Void
+    var toggleReveal: (ClipItem.ID) -> Void
     var delete: (ClipItem.ID) -> Void
     var clearAll: () -> Void
     var close: () -> Void
@@ -19,6 +20,7 @@ struct PanelActions {
         activate: { _ in },
         activateAsPlainText: { _ in },
         togglePin: { _ in },
+        toggleReveal: { _ in },
         delete: { _ in },
         clearAll: {},
         close: {}

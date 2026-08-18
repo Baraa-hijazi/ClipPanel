@@ -24,6 +24,8 @@ nonisolated enum CaptureRules {
         case nothingUsable
         /// The pasteboard changed while its payload was being read; the mixed capture was discarded.
         case changedMidRead
+        /// The detector flagged it and strict mode says flagged entries are not recorded at all.
+        case secretInStrictMode
     }
 
     enum PreReadDecision: Sendable, Equatable {

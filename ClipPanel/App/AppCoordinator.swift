@@ -24,6 +24,11 @@ final class AppCoordinator {
     @ObservationIgnored
     private var pinStore: PinStore?
     @ObservationIgnored
+    private var expiryTimer: Timer?
+    /// How long after pasting a guarded entry the clipboard gets cleared, if it still holds what
+    /// we wrote. Matches the convention password managers established.
+    static let guardedClearDelay: Duration = .seconds(60)
+    @ObservationIgnored
     private lazy var lockObserver = ScreenLockObserver { [weak self] in
         self?.handleScreenLock()
     }
@@ -96,7 +101,18 @@ final class AppCoordinator {
             selection: selection,
             currentAccess: { pasteboard.access },
             paste: { item, plainTextOnly, targetApp in
-                await paster.paste(item, plainTextOnly: plainTextOnly, into: targetApp)
+                // Captures locals rather than self: this closure is built before init finishes.
+                let outcome = await paster.paste(item, plainTextOnly: plainTextOnly, into: targetApp)
+                if case .failed = outcome {
+                    // Nothing was written, so there is nothing to clean up.
+                } else if item.isGuarded, store.settings.clearClipboardAfterPastingGuarded {
+                    let countAtPaste = pasteboard.changeCount
+                    Task {
+                        try? await Task.sleep(for: AppCoordinator.guardedClearDelay)
+                        clearClipboardIfUnchanged(since: countAtPaste, pasteboard: pasteboard, monitor: monitor)
+                    }
+                }
+                return outcome
             }
         )
     }
@@ -130,6 +146,7 @@ final class AppCoordinator {
         if AppPreferences.clearOnScreenLock {
             lockObserver.start()
         }
+        startExpiryTimer()
 
         if presentOnboarding, !AppPreferences.hasCompletedOnboarding {
             onboardingWindow.show()
@@ -140,6 +157,32 @@ final class AppCoordinator {
         monitor.stop()
         hotKeys.unregister()
         lockObserver.stop()
+        expiryTimer?.invalidate()
+        expiryTimer = nil
+    }
+
+    /// Guarded entries expire on a clock, not only when something else happens to poke the store,
+    /// so the sweep needs its own timer. Thirty seconds is far finer than the five-minute default
+    /// lifetime it enforces.
+    private func startExpiryTimer() {
+        guard expiryTimer == nil else { return }
+        let timer = Timer(timeInterval: 30, repeats: true) { _ in
+            MainActor.assumeIsolated {
+                AppCoordinator.sharedExpirySweep?()
+            }
+        }
+        Self.sharedExpirySweep = { [weak self] in self?.sweepExpiredEntries() }
+        RunLoop.main.add(timer, forMode: .common)
+        expiryTimer = timer
+    }
+
+    /// Timer callbacks are not actor-aware; this indirection keeps the closure main-actor bound.
+    @MainActor private static var sharedExpirySweep: (() -> Void)?
+
+    func sweepExpiredEntries() {
+        if store.sweepExpired() > 0 {
+            panel.refreshSizeIfVisible()
+        }
     }
 
     /// What actually happens when the screen locks. Internal so a test can drive it without
@@ -242,6 +285,11 @@ final class AppCoordinator {
         return registered
     }
 
+    /// Test access to the guarded-clear decision, without the minute of waiting.
+    func clearClipboardIfUnchangedForTesting(since changeCount: Int) {
+        clearClipboardIfUnchanged(since: changeCount, pasteboard: pasteboard, monitor: monitor)
+    }
+
     /// Restores pinned entries and keeps them saved from here on.
     ///
     /// Deliberately skipped by the self test: reading a key written by a previous build makes macOS
@@ -274,11 +322,13 @@ final class AppCoordinator {
     func togglePanel() {
         // Cheap, and the only reliable way to notice a permission change: macOS never calls back.
         permissions.refresh()
+        store.sweepExpired()
         panel.toggle()
     }
 
     func showPanel() {
         permissions.refresh()
+        store.sweepExpired()
         panel.show()
     }
 
@@ -329,4 +379,19 @@ final class AppCoordinator {
         store.clearUnpinned()
         panel.refreshSizeIfVisible()
     }
+}
+
+/// A minute after pasting a guarded entry, the clipboard gets taken back off the system pasteboard,
+/// exactly as password managers do with their own copies (REVIEW.md part 2). This is the decision
+/// half: it fires only if the clipboard still holds what we wrote. A newer copy, from anywhere,
+/// cancels the cleanup by definition, which the change counter tells us for free.
+private func clearClipboardIfUnchanged(
+    since changeCount: Int,
+    pasteboard: any PasteboardSource & PasteboardWriting,
+    monitor: ClipboardMonitor
+) {
+    guard pasteboard.changeCount == changeCount else { return }
+    pasteboard.write([])
+    monitor.markOwnPaste()
+    Log.paste.info("Cleared the clipboard after a guarded paste")
 }

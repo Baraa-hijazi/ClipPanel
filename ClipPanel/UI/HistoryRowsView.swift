@@ -13,6 +13,7 @@ import SwiftUI
 struct HistoryRowsView: View {
     let items: [ClipItem]
     var selectedID: ClipItem.ID?
+    var revealedIDs: Set<ClipItem.ID> = []
     var actions: PanelActions = .inert
     var showsCaptions = true
 
@@ -22,6 +23,7 @@ struct HistoryRowsView: View {
                 ItemCardView(
                     item: item,
                     isSelected: item.id == selectedID,
+                    isRevealed: revealedIDs.contains(item.id),
                     actions: actions,
                     showsCaption: showsCaptions
                 )

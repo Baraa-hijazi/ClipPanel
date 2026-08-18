@@ -96,6 +96,31 @@ final class HistoryStore {
         evictIfNeeded()
     }
 
+    /// Removes entries whose time is up: guarded entries past the guarded lifetime, and, when the
+    /// global lifetime is on, any unpinned entry past that. Pins never expire; pinning is the
+    /// user's explicit "keep this". Returns how many were removed so callers know whether the
+    /// panel needs resizing.
+    @discardableResult
+    func sweepExpired(now: Date = Date()) -> Int {
+        let before = items.count
+        items.removeAll { item in
+            guard !item.isPinned else { return false }
+            let age = now.timeIntervalSince(item.createdAt)
+            if item.isGuarded, settings.guardedLifetime > 0, age > settings.guardedLifetime {
+                return true
+            }
+            if settings.historyLifetime > 0, age > settings.historyLifetime {
+                return true
+            }
+            return false
+        }
+        let removed = before - items.count
+        if removed > 0 {
+            Log.app.debug("Expired \(removed) entries")
+        }
+        return removed
+    }
+
     private func pinnedItemsChanged() {
         onPinnedItemsChanged?(items.filter(\.isPinned))
     }

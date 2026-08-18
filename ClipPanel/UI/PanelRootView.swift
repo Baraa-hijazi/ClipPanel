@@ -72,6 +72,7 @@ struct PanelRootView: View {
                 HistoryRowsView(
                     items: store.items,
                     selectedID: selection.selectedID,
+                    revealedIDs: selection.revealedIDs,
                     actions: actions,
                     showsCaptions: store.showSourceAppCaptions
                 )

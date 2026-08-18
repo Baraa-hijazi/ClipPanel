@@ -19,6 +19,9 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     private var window: PanelWindow?
     private var isHiding = false
+    /// True while a confirmation dialog is up, so losing key status to the dialog does not
+    /// dismiss the panel underneath it.
+    private var isPresentingDialog = false
     /// Kept so a size change while the panel is open stays anchored where it opened.
     private var lastAnchor: CGPoint = .zero
 
@@ -45,6 +48,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         activate: { [weak self] item in self?.activate(item, plainTextOnly: false) },
         activateAsPlainText: { [weak self] item in self?.activate(item, plainTextOnly: true) },
         togglePin: { [weak self] id in self?.togglePin(id) },
+        toggleReveal: { [weak self] id in self?.selection.toggleReveal(id: id) },
         delete: { [weak self] id in self?.delete(id) },
         clearAll: { [weak self] in self?.clearAll() },
         close: { [weak self] in self?.hide() }
@@ -96,6 +100,10 @@ final class PanelController: NSObject, NSWindowDelegate {
     /// new rows.
     func refreshSizeIfVisible() {
         guard let window, window.isVisible else { return }
+        // An expiry sweep can remove the selected row out from under the keyboard.
+        if let id = selection.selectedID, !store.items.contains(where: { $0.id == id }) {
+            selection.reset(to: store.items)
+        }
         applySizeAndPosition(to: window)
     }
 
@@ -131,6 +139,13 @@ final class PanelController: NSObject, NSWindowDelegate {
             togglePin(id)
             return true
 
+        case .toggleReveal:
+            guard let id = selection.selectedID,
+                  store.items.first(where: { $0.id == id })?.isGuarded == true
+            else { return false }
+            selection.toggleReveal(id: id)
+            return true
+
         case .delete:
             guard let id = selection.selectedID else { return false }
             delete(id)
@@ -161,9 +176,33 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     private func togglePin(_ id: ClipItem.ID) {
+        // Pinning a guarded entry promotes a probable secret onto disk (encrypted, but on disk),
+        // so it does not happen silently (REVIEW.md part 2). Pinned entries also stop expiring.
+        if let item = store.items.first(where: { $0.id == id }),
+           item.isGuarded, !item.isPinned,
+           !confirmPinningGuardedEntry() {
+            return
+        }
         store.togglePin(id: id)
         // The entry keeps its identity, so selection follows it to its new position.
         refreshSizeIfVisible()
+    }
+
+    private func confirmPinningGuardedEntry() -> Bool {
+        isPresentingDialog = true
+        defer {
+            isPresentingDialog = false
+            // The dialog took key status; hand it back so the panel keeps taking arrow keys.
+            window?.makeKey()
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Pin an entry that looks sensitive?"
+        alert.informativeText = "This entry looks like a password or access token. Pinning stores it encrypted on this Mac and stops it from expiring."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Pin It")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     private func delete(_ id: ClipItem.ID) {
@@ -185,6 +224,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     /// dismiss. Cheaper and more reliable than a global mouse monitor, and unlike a global monitor
     /// it needs no permission.
     func windowDidResignKey(_ notification: Notification) {
+        guard !isPresentingDialog else { return }
         hide()
     }
 

@@ -34,7 +34,7 @@ enum SelfTest {
             if !passed { failures.append(label) }
         }
 
-        print("ClipPanel self test, M1 through M6")
+        print("ClipPanel self test, M1 through M6 plus Secret Guard")
         print("----------------------")
 
         // Let the app finish launching so activation policy and the menu bar item settle.
@@ -245,6 +245,41 @@ enum SelfTest {
         check("excluded apps list is populated with the shipped defaults",
               !coordinator.captureSettings.excludedBundleIDs.isEmpty,
               detail: "\(coordinator.captureSettings.excludedBundleIDs.count) apps")
+
+        // MARK: Secret Guard
+
+        print("")
+        print("Secret Guard")
+        check("detector flags a generated password",
+              SecretDetector.assess(text: "9k#mQ2$vLx8@pR5z", sourceBundleID: nil)
+                  == .probablySecret(.passwordShape))
+        check("detector flags a GitHub token",
+              SecretDetector.assess(text: "ghp_" + "16C7e42F292c6912E7710c838347Ae178B4a", sourceBundleID: nil)
+                  == .probablySecret(.knownTokenShape))
+        check("detector passes ordinary prose",
+              SecretDetector.assess(text: "meeting notes for tuesday", sourceBundleID: "com.apple.Terminal")
+                  == .ordinary)
+
+        var guardedEntry = PasteboardSnapshot(items: [[
+            ClipItem.Representation(type: PasteboardTypes.plainText, data: Data("P@ssw0rd!2024".utf8)),
+        ]])
+        if var made = ItemFactory.make(from: guardedEntry, sourceBundleID: "com.apple.Safari") {
+            made.isGuarded = true
+            coordinator.store.record(made)
+        }
+        check("guarded entry lands in history",
+              coordinator.store.items.contains { $0.isGuarded })
+
+        // Expire it with a clock jump rather than a wait.
+        let removed = coordinator.store.sweepExpired(
+            now: Date().addingTimeInterval(coordinator.store.settings.guardedLifetime + 1)
+        )
+        check("guarded entry expires on schedule", removed >= 1,
+              detail: "\(removed) removed")
+        check("expiry left the pinned entry alone",
+              coordinator.store.items.contains { $0.isPinned })
+        _ = guardedEntry
+        coordinator.store.removeEverything()
 
         print("----------------------")
         if failures.isEmpty {

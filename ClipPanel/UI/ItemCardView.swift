@@ -2,8 +2,9 @@
 //  ItemCardView.swift
 //  ClipPanel
 //
-//  One history entry, per DESIGN 8: preview, source app and time caption, and pin/delete
-//  affordances that appear on hover or when the keyboard is on the row.
+//  One history entry: preview, source and time caption, pin and delete affordances on hover or
+//  keyboard focus. Guarded entries (the secret detector flagged them) are masked until revealed,
+//  which also covers the shoulder-surfing case that screen-capture exclusion never could.
 //
 
 import SwiftUI
@@ -11,12 +12,14 @@ import SwiftUI
 struct ItemCardView: View {
     let item: ClipItem
     let isSelected: Bool
+    let isRevealed: Bool
     let actions: PanelActions
     var showsCaption = true
 
     @State private var isHovering = false
 
     private var showsActions: Bool { isHovering || isSelected }
+    private var isMasked: Bool { item.isGuarded && !isRevealed }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -60,13 +63,46 @@ struct ItemCardView: View {
 
     @ViewBuilder
     private var content: some View {
+        if isMasked {
+            maskedContent
+        } else {
+            plainContent
+        }
+    }
+
+    /// The preview string is deliberately not rendered at all while masked, not even blurred:
+    /// blurs can be reversed and screen readers still speak hidden views' text.
+    private var maskedContent: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "shield.fill")
+                .font(.caption)
+                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+            Text("••••••••")
+                .font(.callout.monospaced())
+            Text("Probably sensitive")
+                .font(.caption)
+                .foregroundStyle(isSelected ? AnyShapeStyle(.white.opacity(0.8)) : AnyShapeStyle(.secondary))
+        }
+        .accessibilityLabel("Probably sensitive entry, masked")
+    }
+
+    @ViewBuilder
+    private var plainContent: some View {
         switch item.preview {
         case .text(let string):
-            Text(string)
-                .font(.callout)
-                .lineLimit(4)
-                .truncationMode(.tail)
-                .textSelection(.disabled)
+            HStack(alignment: .top, spacing: 6) {
+                if item.isGuarded {
+                    Image(systemName: "shield.fill")
+                        .font(.caption)
+                        .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
+                        .padding(.top, 2)
+                }
+                Text(string)
+                    .font(.callout)
+                    .lineLimit(4)
+                    .truncationMode(.tail)
+                    .textSelection(.disabled)
+            }
 
         case .image(let thumbnailPNG, let pixelSize):
             HStack(spacing: 8) {
@@ -110,14 +146,22 @@ struct ItemCardView: View {
 
     private var captionText: String {
         let when = item.createdAt.formatted(.relative(presentation: .numeric))
-        guard let app = AppNameResolver.shared.displayName(for: item.sourceBundleID) else {
-            return when
-        }
-        return "\(app)  ·  \(when)"
+        let source = AppNameResolver.shared.displayName(for: item.sourceBundleID)
+        let base = source.map { "\($0)  ·  \(when)" } ?? when
+        return item.isGuarded ? "\(base)  ·  expires soon" : base
     }
 
     private var rowActions: some View {
         HStack(spacing: 2) {
+            if item.isGuarded {
+                Button {
+                    actions.toggleReveal(item.id)
+                } label: {
+                    Image(systemName: isRevealed ? "eye.slash" : "eye")
+                }
+                .help(isRevealed ? "Mask again" : "Reveal (command-R)")
+            }
+
             Button {
                 actions.togglePin(item.id)
             } label: {

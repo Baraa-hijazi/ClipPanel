@@ -13,11 +13,27 @@ import Observation
 @Observable
 final class PanelSelection {
     private(set) var selectedID: ClipItem.ID?
+    /// Guarded entries the user has unmasked this panel session. Cleared every time the panel
+    /// opens, so a revealed password does not stay readable across openings.
+    private(set) var revealedIDs: Set<ClipItem.ID> = []
 
     /// Called each time the panel opens. The first entry is selected so the Win+V habit of
     /// "shortcut, then Return" pastes the most recent copy.
     func reset(to items: [ClipItem]) {
         selectedID = items.first?.id
+        revealedIDs.removeAll()
+    }
+
+    func toggleReveal(id: ClipItem.ID) {
+        if revealedIDs.contains(id) {
+            revealedIDs.remove(id)
+        } else {
+            revealedIDs.insert(id)
+        }
+    }
+
+    func isRevealed(_ id: ClipItem.ID) -> Bool {
+        revealedIDs.contains(id)
     }
 
     func selectedItem(in items: [ClipItem]) -> ClipItem? {

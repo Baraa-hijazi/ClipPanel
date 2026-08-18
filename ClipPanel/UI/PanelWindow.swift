@@ -13,6 +13,7 @@ enum PanelKeyCommand: Equatable {
     case activate
     case activateAsPlainText
     case togglePin
+    case toggleReveal
     case delete
     case cancel
 }
@@ -47,10 +48,15 @@ final class PanelWindow: NSPanel {
 
     /// Command-modified keys arrive here rather than in `keyDown`.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard event.modifierFlags.contains(.command),
-              event.charactersIgnoringModifiers?.lowercased() == "p",
-              onKeyCommand?(.togglePin) == true
-        else {
+        guard event.modifierFlags.contains(.command) else {
+            return super.performKeyEquivalent(with: event)
+        }
+        let command: PanelKeyCommand? = switch event.charactersIgnoringModifiers?.lowercased() {
+        case "p": .togglePin
+        case "r": .toggleReveal
+        default: nil
+        }
+        guard let command, onKeyCommand?(command) == true else {
             return super.performKeyEquivalent(with: event)
         }
         return true

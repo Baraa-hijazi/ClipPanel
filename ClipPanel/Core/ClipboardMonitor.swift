@@ -148,9 +148,21 @@ final class ClipboardMonitor: NSObject {
         case .skip(let reason):
             return report(reason)
         case .record:
-            guard let item else { return report(.nothingUsable) }
+            guard var item else { return report(.nothingUsable) }
+
+            // Secret Guard: text entries get assessed once, at capture. Detection requires the
+            // payload, which has already been read exactly once by this point.
+            if let plainText = item.plainTextRepresentation,
+               let text = String(data: plainText.data, encoding: .utf8),
+               case .probablySecret = SecretDetector.assess(text: text, sourceBundleID: sourceBundleID) {
+                if settings.strictSecretMode {
+                    return report(.secretInStrictMode)
+                }
+                item.isGuarded = true
+            }
+
             // Note the absence of any payload or preview in this log line, per Log.swift.
-            Log.capture.debug("Captured entry, \(item.byteSize) bytes, \(item.allTypes.count) types")
+            Log.capture.debug("Captured entry, \(item.byteSize) bytes, \(item.allTypes.count) types, guarded: \(item.isGuarded)")
             onCapture?(item)
             return nil
         }
