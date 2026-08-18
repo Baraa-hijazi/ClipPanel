@@ -199,3 +199,64 @@ final class Box<Value> {
     var value: Value
     init(_ value: Value) { self.value = value }
 }
+
+@Suite("Clipboard monitor, race windows")
+@MainActor
+struct ClipboardMonitorRaceTests {
+    private func makeMonitor(
+        pasteboard: FakePasteboard
+    ) -> (ClipboardMonitor, Box<[ClipItem]>) {
+        let captured = Box<[ClipItem]>([])
+        let monitor = ClipboardMonitor(
+            source: pasteboard,
+            currentSettings: { CaptureSettings() },
+            frontmostBundleID: { "com.apple.TextEdit" }
+        )
+        monitor.onCapture = { captured.value.append($0) }
+        return (monitor, captured)
+    }
+
+    @Test("A pasteboard change during the read discards the mixed capture")
+    func changeDuringReadIsDiscarded() {
+        let pasteboard = FakePasteboard()
+        let (monitor, captured) = makeMonitor(pasteboard: pasteboard)
+
+        pasteboard.put(textSnapshot("harmless"))
+        // Between the type peek and the payload read, a password manager writes a secret.
+        pasteboard.afterTypesRead = {
+            pasteboard.put(PasteboardSnapshot(items: [[
+                representation(PasteboardTypes.plainText, "hunter2"),
+                representation(PasteboardTypes.concealed, ""),
+            ]]))
+        }
+
+        #expect(monitor.poll() == .changedMidRead)
+        #expect(captured.value.isEmpty)
+
+        // The next poll evaluates the new contents from scratch and rejects them for the real
+        // reason, without a payload read.
+        let readsBefore = pasteboard.payloadReadCount
+        #expect(monitor.poll() == .concealed)
+        #expect(pasteboard.payloadReadCount == readsBefore)
+        #expect(captured.value.isEmpty)
+    }
+
+    @Test("The marker re-check holds even when the change counter cannot catch the swap")
+    func markerRecheckIsIndependentOfTheCounter() {
+        let pasteboard = FakePasteboard()
+        let (monitor, captured) = makeMonitor(pasteboard: pasteboard)
+
+        pasteboard.put(textSnapshot("harmless"))
+        // Impossible on a real pasteboard, which always advances the counter. This bypasses the
+        // counter guard on purpose to prove the second, independent layer.
+        pasteboard.afterTypesRead = {
+            pasteboard.sneakilyReplace(PasteboardSnapshot(items: [[
+                representation(PasteboardTypes.plainText, "hunter2"),
+                representation(PasteboardTypes.concealed, ""),
+            ]]))
+        }
+
+        #expect(monitor.poll() == .concealed)
+        #expect(captured.value.isEmpty)
+    }
+}

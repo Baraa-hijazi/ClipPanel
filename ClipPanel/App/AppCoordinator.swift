@@ -25,8 +25,7 @@ final class AppCoordinator {
     private var pinStore: PinStore?
     @ObservationIgnored
     private lazy var lockObserver = ScreenLockObserver { [weak self] in
-        self?.store.removeEverything()
-        self?.hidePanel()
+        self?.handleScreenLock()
     }
     /// False when the keychain or the file could not be reached. Pins still work for the session,
     /// they just will not survive a restart, and the user is told rather than being left to
@@ -143,6 +142,20 @@ final class AppCoordinator {
         lockObserver.stop()
     }
 
+    /// What actually happens when the screen locks. Internal so a test can drive it without
+    /// faking a distributed notification.
+    ///
+    /// clearUnpinned, NOT removeEverything: the Settings toggle promises "Pinned entries are
+    /// kept", and for one release the code disagreed, wiping pins and their encrypted file at
+    /// every lock. removeEverything stays reserved for an explicit forget-everything action,
+    /// where destroying pins is the point.
+    func handleScreenLock() {
+        if AppPreferences.clearOnScreenLock {
+            store.clearUnpinned()
+        }
+        hidePanel()
+    }
+
     // MARK: - Settings
 
     var captureSettings: CaptureSettings {
@@ -169,7 +182,16 @@ final class AppCoordinator {
         get { AppPreferences.clearOnScreenLock }
         set {
             AppPreferences.clearOnScreenLock = newValue
-            newValue ? lockObserver.start() : lockObserver.stop()
+            refreshLockObserver()
+        }
+    }
+
+    /// The observer runs when any lock-reactive feature is on; the actions gate themselves.
+    private func refreshLockObserver() {
+        if AppPreferences.clearOnScreenLock {
+            lockObserver.start()
+        } else {
+            lockObserver.stop()
         }
     }
 

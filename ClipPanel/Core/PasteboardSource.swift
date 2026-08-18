@@ -86,25 +86,32 @@ final class SystemPasteboard: PasteboardSource, PasteboardWriting {
 
     func readSnapshot(maxBytes: Int) -> PasteboardSnapshot {
         var items: [[ClipItem.Representation]] = []
+        var observed: Set<String> = []
         var runningTotal = 0
 
         for item in pasteboard.pasteboardItems ?? [] {
+            let declared = item.types.map(\.rawValue)
+            observed.formUnion(declared)
+
             var representations: [ClipItem.Representation] = []
-            for type in item.types {
-                guard let data = item.data(forType: type) else { continue }
+            // Only the types worth keeping are read at all. Reading a type forces the source app
+            // to resolve promised data, and the size cap should judge what will be stored, not a
+            // redundant TIFF that was never going to be kept.
+            for type in RepresentationPolicy.typesToStore(from: declared) {
+                guard let data = item.data(forType: NSPasteboard.PasteboardType(type)) else { continue }
 
                 runningTotal += data.count
                 if runningTotal > maxBytes {
                     // Discard the partial read rather than hand back something half measured.
-                    return PasteboardSnapshot(items: [], exceededReadLimit: true)
+                    return PasteboardSnapshot(items: [], exceededReadLimit: true, observedTypes: observed)
                 }
                 representations.append(
-                    ClipItem.Representation(type: type.rawValue, data: data)
+                    ClipItem.Representation(type: type, data: data)
                 )
             }
             items.append(representations)
         }
 
-        return PasteboardSnapshot(items: items)
+        return PasteboardSnapshot(items: items, observedTypes: observed)
     }
 }

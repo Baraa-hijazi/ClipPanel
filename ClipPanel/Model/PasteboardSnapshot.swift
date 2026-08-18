@@ -13,7 +13,21 @@ nonisolated struct PasteboardSnapshot: Sendable, Equatable {
     /// True when reading stopped early because the running total passed the size cap. The
     /// partial read is then discarded, which keeps a pathological 500 MB copy from being
     /// pulled into memory just to be measured and thrown away.
-    var exceededReadLimit: Bool = false
+    var exceededReadLimit: Bool
+    /// Every type the pasteboard DECLARED at read time, before representation slimming. The
+    /// post-read marker check runs against this, because markers are deliberately never stored
+    /// and would be invisible in `items`.
+    var observedTypes: Set<String>
+
+    init(
+        items: [[ClipItem.Representation]],
+        exceededReadLimit: Bool = false,
+        observedTypes: Set<String>? = nil
+    ) {
+        self.items = items
+        self.exceededReadLimit = exceededReadLimit
+        self.observedTypes = observedTypes ?? Set(items.flatMap { $0.map(\.type) })
+    }
 
     var byteSize: Int {
         items.reduce(0) { total, item in

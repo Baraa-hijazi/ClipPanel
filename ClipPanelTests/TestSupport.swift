@@ -64,13 +64,27 @@ final class FakePasteboard: PasteboardSource, PasteboardWriting {
         changeCount += 1
     }
 
+    /// Runs after the type peek and before the payload read, so a test can change the pasteboard
+    /// in exactly the window the TOCTOU guards exist for.
+    var afterTypesRead: (() -> Void)?
+
     func put(_ snapshot: PasteboardSnapshot) {
         stored = snapshot
         changeCount += 1
     }
 
+    /// Replaces the contents WITHOUT advancing the change counter, which no real pasteboard write
+    /// can do. Exists to prove the marker re-check holds even if the counter guard were bypassed.
+    func sneakilyReplace(_ snapshot: PasteboardSnapshot) {
+        stored = snapshot
+    }
+
     func itemTypes() -> [[String]] {
-        stored.items.map { $0.map(\.type) }
+        let types = stored.items.map { $0.map(\.type) }
+        let hook = afterTypesRead
+        afterTypesRead = nil
+        hook?()
+        return types
     }
 
     func readSnapshot(maxBytes: Int) -> PasteboardSnapshot {

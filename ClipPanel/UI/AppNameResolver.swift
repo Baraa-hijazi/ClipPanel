@@ -10,11 +10,16 @@ import AppKit
 final class AppNameResolver {
     static let shared = AppNameResolver()
 
+    /// Far above anything a real history produces, low enough that the cache cannot grow without
+    /// bound over an agent process that runs for weeks.
+    private static let cacheLimit = 64
+
     private var cache: [String: String?] = [:]
 
     func displayName(for bundleID: String?) -> String? {
         guard let bundleID else { return nil }
         if let cached = cache[bundleID] { return cached }
+        if cache.count >= Self.cacheLimit { cache.removeAll() }
 
         let resolved = NSWorkspace.shared
             .urlForApplication(withBundleIdentifier: bundleID)

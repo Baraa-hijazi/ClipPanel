@@ -22,6 +22,8 @@ nonisolated enum CaptureRules {
         case paused
         case tooLarge
         case nothingUsable
+        /// The pasteboard changed while its payload was being read; the mixed capture was discarded.
+        case changedMidRead
     }
 
     enum PreReadDecision: Sendable, Equatable {
