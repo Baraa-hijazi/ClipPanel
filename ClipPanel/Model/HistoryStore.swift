@@ -16,6 +16,7 @@
 
 import Foundation
 import Observation
+import OSLog
 
 @Observable
 final class HistoryStore {
@@ -24,9 +25,22 @@ final class HistoryStore {
 
     var settings = CaptureSettings()
 
+    /// Called whenever the pinned set changes, so persistence stays somebody else's problem.
+    /// Nil means nothing is persisted, which is how the tests and previews run.
+    @ObservationIgnored
+    var onPinnedItemsChanged: (([ClipItem]) -> Void)?
+
     var isEmpty: Bool { items.isEmpty }
     var pinnedCount: Int { items.count { $0.isPinned } }
     var unpinnedCount: Int { items.count { !$0.isPinned } }
+
+    /// Seeds the pinned entries restored from disk at launch, ahead of any capture.
+    func restore(pinned items: [ClipItem]) {
+        for item in items where item.isPinned {
+            insert(item)
+        }
+        Log.app.debug("Restored \(items.count) pinned entries")
+    }
 
     /// Records a capture. A re-copy of existing content moves that entry back to the top of
     /// its group and keeps its pin state and identity, which is what Windows does.
@@ -51,10 +65,13 @@ final class HistoryStore {
         insert(item)
         // Unpinning can push the list back over the limit.
         evictIfNeeded()
+        pinnedItemsChanged()
     }
 
     func delete(id: ClipItem.ID) {
+        let wasPinned = items.first { $0.id == id }?.isPinned ?? false
         items.removeAll { $0.id == id }
+        if wasPinned { pinnedItemsChanged() }
     }
 
     /// Clear All, matching Windows: pinned entries survive.
@@ -62,9 +79,16 @@ final class HistoryStore {
         items.removeAll { !$0.isPinned }
     }
 
-    /// Used by the lock-screen and pause paths in M6, and by tests.
+    /// Used by the lock-screen path in M6, and by tests. Clears the persisted pins too, because
+    /// "forget everything" that leaves a file behind is not forgetting.
     func removeEverything() {
+        let hadPinned = pinnedCount > 0
         items.removeAll()
+        if hadPinned { pinnedItemsChanged() }
+    }
+
+    private func pinnedItemsChanged() {
+        onPinnedItemsChanged?(items.filter(\.isPinned))
     }
 
     // MARK: - Private

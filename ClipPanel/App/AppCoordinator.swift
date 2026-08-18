@@ -21,6 +21,13 @@ final class AppCoordinator {
     private let panel: PanelController
     private let selection = PanelSelection()
 
+    @ObservationIgnored
+    private var pinStore: PinStore?
+    /// False when the keychain or the file could not be reached. Pins still work for the session,
+    /// they just will not survive a restart, and the user is told rather than being left to
+    /// discover it after a reboot.
+    private(set) var pinsPersist = false
+
     let panelShortcut = GlobalShortcut.panelDefault
 
     /// True when the shortcut could not be claimed, usually because another app owns it.
@@ -92,7 +99,9 @@ final class AppCoordinator {
         )
     }
 
-    func start(presentOnboarding: Bool = true) {
+    func start(presentOnboarding: Bool = true, persistPins: Bool = true) {
+        if persistPins { setUpPinPersistence() }
+
         monitor.onCapture = { [weak self] item in
             guard let self else { return }
             store.record(item)
@@ -127,6 +136,33 @@ final class AppCoordinator {
     func stop() {
         monitor.stop()
         hotKeys.unregister()
+    }
+
+    /// Restores pinned entries and keeps them saved from here on.
+    ///
+    /// Deliberately skipped by the self test: reading a key written by a previous build makes macOS
+    /// prompt for keychain access, because an ad-hoc signature changes on every rebuild, and a
+    /// prompt would hang a headless run. A Developer ID signed build has a stable identity and does
+    /// not have this problem.
+    private func setUpPinPersistence() {
+        do {
+            let key = try KeychainKey.loadOrCreate()
+            let fileURL = try PinStore.defaultFileURL()
+            let pinStore = PinStore(fileURL: fileURL, key: key)
+
+            store.restore(pinned: pinStore.load())
+            store.onPinnedItemsChanged = { [weak pinStore] pinned in
+                pinStore?.save(pinned)
+            }
+
+            self.pinStore = pinStore
+            pinsPersist = true
+        } catch {
+            pinsPersist = false
+            Log.pins.error(
+                "Pinned entries will not survive a restart this session: \(String(describing: error), privacy: .public)"
+            )
+        }
     }
 
     // MARK: - Panel

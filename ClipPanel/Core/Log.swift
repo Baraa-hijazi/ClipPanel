@@ -19,4 +19,5 @@ nonisolated enum Log {
     static let panel = Logger(subsystem: subsystem, category: "panel")
     static let capture = Logger(subsystem: subsystem, category: "capture")
     static let paste = Logger(subsystem: subsystem, category: "paste")
+    static let pins = Logger(subsystem: subsystem, category: "pins")
 }

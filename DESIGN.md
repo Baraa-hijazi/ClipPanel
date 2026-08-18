@@ -520,18 +520,50 @@ hosting tests, so neither automated path pops a window or a system prompt.
 Still needs a human: the section 11 paste matrix (TextEdit, Safari form, Notes, Terminal, VS Code,
 Word, one Electron app), plus granting Accessibility once and confirming a real paste lands.
 
-### Next: M5, encrypted pin persistence
+### M5 complete (2026-08-18)
 
-Section 10 M5 is the checklist: `Persistence/CryptoBox.swift`, `Persistence/KeychainKey.swift`,
-`Persistence/PinStore.swift`, wired into `HistoryStore` so pins survive a restart and unpinned
-entries still never touch disk.
+Pinned entries persist, encrypted. 97 test cases passing, self test at 34 checks and green.
 
-Constraints that must hold: AES-256-GCM, key in the login keychain as a generic password with
-`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` so it is never synced or backed up off-device,
-atomic rewrite on every pin change, and a corrupt or undecryptable file renamed aside rather than
-crashing or silently discarding.
+Files added: `Persistence/CryptoBox.swift`, `Persistence/KeychainKey.swift`,
+`Persistence/PinStore.swift`. `HistoryStore` gained `restore(pinned:)` and an
+`onPinnedItemsChanged` hook, so it persists pins without knowing anything about files or crypto.
 
-Note for the tests: they must NOT touch the real keychain. An ad-hoc signed test host gets a fresh
-code identity on every rebuild, which makes macOS prompt for keychain access and would hang the
-run. Test `CryptoBox` and `PinStore` with an injected key, and leave `KeychainKey` to manual
-verification.
+Guarantee 3 is now real: AES-256-GCM via CryptoKit, key generated once and stored as a keychain
+generic password with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, file at
+`~/Library/Application Support/ClipPanel/pins.enc` with 0600 permissions, written atomically on
+every pin change. GCM rather than plain encryption because it authenticates: a tampered file fails
+to open instead of decrypting into plausible rubbish. Format is magic (`CLIPPIN1`) plus a version
+byte, so a foreign or future file is recognised rather than misread.
+
+Guarantee 2 is now checked rather than merely asserted. `PinStore.save` filters to pinned entries,
+and a test records unpinned entries and then asserts **no file exists at all**. Another test asserts
+the written bytes do not contain the plaintext, which is the cheapest possible proof that this is
+encryption rather than encoding.
+
+Failure handling, all tested: a missing file means nothing is pinned; a corrupt or wrong-key file is
+renamed `.damaged` and the app starts empty rather than refusing to launch over a damaged cache;
+unpinning the last entry removes the file instead of leaving ciphertext lying around; and if the
+keychain cannot be reached at all, pins still work for the session, `pinsPersist` goes false, and
+the menu says so rather than letting the user find out after a reboot.
+
+**Two things deliberately not automated**, both recorded so nobody assumes they were forgotten:
+
+1. **`KeychainKey` has no unit tests.** An ad-hoc signed test host gets a new code identity on every
+   rebuild, so reading back a key written by a previous build makes macOS prompt for keychain access,
+   which would hang a headless run. `CryptoBox` and `PinStore` are tested with injected keys
+   instead, and the keychain path is verified by hand.
+2. **The self test skips pin persistence entirely** (`persistPins: false`), for the same reason, and
+   asserts that it did so.
+
+**Development-build wart worth knowing:** because these builds are ad-hoc signed, macOS may prompt
+for keychain access after a rebuild, since the app's identity changed. A Developer ID signed build
+has a stable identity and does not do this. Do not mistake that prompt for a bug in the key handling.
+
+### Next: M6, settings, exclusions, login item
+
+Section 10 M6 is the checklist: the General and Privacy tabs, a hot key recorder, an
+`SMAppService.mainApp` login item, auto-clear on screen lock, and the app icon.
+
+Settings need to persist, so `CaptureSettings` has to be backed by UserDefaults (preferences only,
+never content). `PasteboardTypes`, `ExclusionList`, and the existing pause and caption plumbing are
+already in place; this milestone is mostly UI plus the login item.

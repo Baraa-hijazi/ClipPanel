@@ -25,7 +25,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Onboarding is suppressed during the self test, which drives the app headlessly.
-        coordinator.start(presentOnboarding: !isRunningSelfTest)
+        coordinator.start(
+            presentOnboarding: !isRunningSelfTest,
+            persistPins: !isRunningSelfTest
+        )
 
         #if DEBUG
         SelfTest.runIfRequested(coordinator: coordinator)

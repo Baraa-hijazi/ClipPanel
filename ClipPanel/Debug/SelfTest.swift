@@ -34,7 +34,7 @@ enum SelfTest {
             if !passed { failures.append(label) }
         }
 
-        print("ClipPanel self test, M1 through M4")
+        print("ClipPanel self test, M1 through M5")
         print("----------------------")
 
         // Let the app finish launching so activation policy and the menu bar item settle.
@@ -201,6 +201,19 @@ enum SelfTest {
         // to the real pasteboard and clobber whatever the user had copied.
         print("INFO  paste flow itself is covered by PasteInjectorTests, not here, to avoid "
               + "touching the real clipboard")
+
+        // MARK: M5, encrypted pin persistence
+
+        print("")
+        print("M5 encrypted pin persistence")
+        // Suppression matters: without it this headless run could stop on a keychain prompt, because
+        // an ad-hoc signature changes identity on every rebuild.
+        check("keychain and pin file are left alone during the self test",
+              coordinator.pinsPersist == false)
+        if let location = try? PinStore.defaultFileURL() {
+            print("INFO  pins would live at \(location.path)")
+        }
+        print("INFO  crypto and pin store behaviour is covered by CryptoBoxTests and PinStoreTests")
 
         print("----------------------")
         if failures.isEmpty {

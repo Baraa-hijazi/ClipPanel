@@ -29,6 +29,9 @@ struct MenuBarContent: View {
         if !coordinator.canPasteAutomatically {
             Text("Copy-only mode: picking an entry copies it, then press command-V")
         }
+        if !coordinator.pinsPersist {
+            Text("Pinned entries will not survive a restart this session")
+        }
 
         Divider()
 
