@@ -9,8 +9,19 @@ import SwiftUI
 
 /// Owns the panel window: builds it once, shows it at the right place, hides it again.
 final class PanelController: NSObject, NSWindowDelegate {
+    private let store: HistoryStore
+    private let currentAccess: () -> PasteboardAccess
+
     private var window: PanelWindow?
     private var isHiding = false
+    /// Kept so a size change while the panel is open stays anchored where it opened.
+    private var lastAnchor: CGPoint = .zero
+
+    init(store: HistoryStore, currentAccess: @escaping () -> PasteboardAccess) {
+        self.store = store
+        self.currentAccess = currentAccess
+        super.init()
+    }
 
     /// Who owned the keyboard when the panel opened. M4 reactivates this app before
     /// synthesizing command-V, so the paste lands where the user was actually typing.
@@ -28,11 +39,8 @@ final class PanelController: NSObject, NSWindowDelegate {
 
         rememberFrontmostApp()
 
-        let size = fittingSize(for: panel)
-        panel.setContentSize(size)
-        panel.setFrameOrigin(
-            PanelPositioner.origin(for: size, near: NSEvent.mouseLocation, screens: NSScreen.screens)
-        )
+        lastAnchor = NSEvent.mouseLocation
+        applySizeAndPosition(to: panel)
 
         // orderFrontRegardless plus makeKey, never NSApp.activate: that combination is what
         // shows the panel and gives it keystrokes while leaving the other app frontmost.
@@ -56,6 +64,13 @@ final class PanelController: NSObject, NSWindowDelegate {
         window.orderOut(nil)
         isHiding = false
         Log.panel.debug("Panel hidden")
+    }
+
+    /// Called after the history changes so the panel grows or shrinks to match instead of
+    /// clipping new rows.
+    func refreshSizeIfVisible() {
+        guard let window, window.isVisible else { return }
+        applySizeAndPosition(to: window)
     }
 
     // MARK: - NSWindowDelegate
@@ -94,11 +109,52 @@ final class PanelController: NSObject, NSWindowDelegate {
         panel.delegate = self
         panel.onCancel = { [weak self] in self?.hide() }
 
-        let hosting = NSHostingView(rootView: PanelRootView())
+        let hosting = NSHostingView(
+            rootView: PanelRootView(
+                store: store,
+                pasteboardAccess: currentAccess(),
+                listHeight: measuredListHeight()
+            )
+        )
         hosting.sizingOptions = .intrinsicContentSize
         panel.contentView = hosting
 
         return panel
+    }
+
+    private func applySizeAndPosition(to panel: PanelWindow) {
+        // Re-read access on every show so a permission change mid-session is reflected.
+        (panel.contentView as? NSHostingView<PanelRootView>)?.rootView = PanelRootView(
+            store: store,
+            pasteboardAccess: currentAccess(),
+            listHeight: measuredListHeight()
+        )
+
+        let size = fittingSize(for: panel)
+        panel.setContentSize(size)
+        panel.setFrameOrigin(
+            PanelPositioner.origin(
+                for: size,
+                near: lastAnchor,
+                screens: PanelPositioner.currentScreens()
+            )
+        )
+    }
+
+    /// Measures the rows on their own, in a throwaway hosting view, and returns how much
+    /// height the list should get: its natural height, or the cap if it overflows.
+    ///
+    /// Measuring separately is what makes the panel size correctly. Asking a ScrollView for its
+    /// fitting size returns something near its minimum, because scroll views are happy at any
+    /// height, which previously sized the whole panel as though it held a single row.
+    private func measuredListHeight() -> CGFloat {
+        guard !store.items.isEmpty else { return 0 }
+
+        let probe = NSHostingView(rootView: HistoryRowsView(items: store.items))
+        probe.layoutSubtreeIfNeeded()
+        let natural = probe.fittingSize.height
+
+        return min(max(natural, 1), PanelMetrics.listMaxHeight)
     }
 
     private func fittingSize(for panel: PanelWindow) -> CGSize {

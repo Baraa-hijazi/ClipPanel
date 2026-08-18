@@ -17,4 +17,5 @@ nonisolated enum Log {
     static let app = Logger(subsystem: subsystem, category: "app")
     static let hotKey = Logger(subsystem: subsystem, category: "hotkey")
     static let panel = Logger(subsystem: subsystem, category: "panel")
+    static let capture = Logger(subsystem: subsystem, category: "capture")
 }

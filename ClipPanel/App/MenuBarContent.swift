@@ -2,8 +2,7 @@
 //  MenuBarContent.swift
 //  ClipPanel
 //
-//  Only items that actually work are listed. Pause Capture and Clear All arrive with the
-//  capture pipeline in M2, Settings in M6.
+//  Only items that actually work are listed. Settings arrives in M6.
 //
 
 import Carbon.HIToolbox
@@ -24,6 +23,19 @@ struct MenuBarContent: View {
         if coordinator.hotKeyUnavailable {
             Text("Shortcut \(coordinator.panelShortcut.description) is in use by another app")
         }
+        if coordinator.pasteboardAccess == .denied {
+            Text("Clipboard access is turned off in System Settings")
+        }
+
+        Divider()
+
+        Button(coordinator.isPaused ? "Resume Capture" : "Pause Capture") {
+            coordinator.togglePause()
+        }
+        Button("Clear All") {
+            coordinator.clearHistory()
+        }
+        .disabled(coordinator.store.unpinnedCount == 0)
 
         Divider()
 

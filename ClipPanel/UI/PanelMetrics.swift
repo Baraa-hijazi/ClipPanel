@@ -9,6 +9,8 @@ nonisolated enum PanelMetrics {
     /// Matches the Win+V flyout closely enough to feel familiar without looking foreign on macOS.
     static let width: CGFloat = 360
     static let maxHeight: CGFloat = 480
+    /// Height the scrolling list is allowed to reach before it starts scrolling.
+    static let listMaxHeight: CGFloat = 400
     static let cornerRadius: CGFloat = 12
     /// Gap between the panel and the screen edge when clamping.
     static let screenInset: CGFloat = 8

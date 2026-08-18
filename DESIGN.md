@@ -363,7 +363,71 @@ Still requires a human at the keyboard (cannot be automated from a terminal): pr
 real app to confirm the panel appears at the pointer and that typing continues in that app after
 Escape, plus checking the menu bar item.
 
-### Next: M2, capture pipeline
+### M2 complete (2026-08-18)
 
-Start at section 7 (capture rules) and section 10 M2. First run will trigger the macOS 26
-pasteboard privacy prompt described in 6.1; wire the denial path before chasing the happy path.
+Capture pipeline, history store, live panel list, and a unit test target. 55 test cases passing,
+self test extended to 22 checks and still green.
+
+Files added: `Model/PasteboardTypes.swift`, `Model/ClipItem.swift`, `Model/CaptureSettings.swift`
+(with `ExclusionList`), `Model/CaptureRules.swift`, `Model/PasteboardSnapshot.swift`,
+`Model/ItemFactory.swift`, `Model/HistoryStore.swift`, `Core/PasteboardSource.swift`,
+`Core/ClipboardMonitor.swift`, `UI/HistoryRowsView.swift`, `UI/ItemRowView.swift`,
+`UI/AppNameResolver.swift`, plus the `ClipPanelTests` target (hand-authored into the pbxproj,
+file-system synchronized, app hosted, Swift Testing).
+
+Four decisions that depart from the design as written, each on purpose:
+
+1. **Capture rules are two phase, not one ordered list (was section 7).** `decideBeforeReading`
+   judges from type identifiers alone, so a concealed, excluded, paused, or unsupported copy is
+   rejected with **zero payload reads**; `decideAfterReading` handles size and usability, which
+   genuinely need the bytes. This upgrades the concealed-copy guarantee from "we did not keep
+   the password" to "we never read it", and keeps payload reads at one per captured change,
+   which is what the macOS 26 privacy alert counts. Two tests assert `payloadReadCount == 0` on
+   the concealed and excluded-app paths.
+2. **`ClipItem` stores representations per pasteboard item (`[[Representation]]`), not flat
+   (was section 7).** A multi-file copy puts several items on the pasteboard and a flat list
+   cannot reproduce it. Changed now, before M5 makes the shape permanent in an encrypted file.
+3. **`HistoryStore` is an `@Observable` main-actor class, not an actor (was section 5).** It
+   holds 25 small entries mutated only from the monitor and the panel, both already on the main
+   actor, so an actor would buy async hops and an observation bridge for no contention benefit.
+   The expensive work (SHA-256, thumbnailing) sits in `ItemFactory`, which is `nonisolated` and
+   can move off the main actor on its own if profiling asks.
+4. **The history limit counts unpinned entries only.** Pinning is the user saying "keep this",
+   so a pin is never evicted to make room, and pinning something does not silently shrink the
+   history.
+
+Also worth knowing:
+
+- **Oversized copies are abandoned mid-read.** `readSnapshot(maxBytes:)` stops and discards as
+  soon as the running total passes the cap, so a pathological 500 MB copy is never fully pulled
+  into memory just to be measured and thrown away.
+- **The pre-launch clipboard is not collected.** The monitor starts level with the current
+  change count, so whatever was copied before ClipPanel started is not ours.
+- **A copy made while paused stays uncaptured after resuming.** The change counter advances even
+  on skipped changes, which a test pins down. Pause means paused, not deferred.
+- **Polling runs in `.common` run loop mode**, so capture keeps working while a menu is open or
+  a window is being dragged.
+- **Denial path is wired before the happy path**, as planned: `NSPasteboard.accessBehavior`
+  (confirmed present in the 26.5 SDK, macOS 15.4+) is surfaced as `PasteboardAccess`, the panel
+  shows an explanatory state instead of looking empty and broken, and the menu says so too.
+- **Tests do not start the live monitor.** `AppDelegate` skips `coordinator.start()` when
+  hosting tests, so a test run cannot raise the pasteboard prompt (which would hang the run),
+  read the developer's real clipboard, or fight a running copy of the app for the hot key. Test
+  fixtures use a `FakePasteboard`, never `NSPasteboard.general`.
+
+**Bug found and fixed during M2, worth remembering:** wrapping the list in a `ScrollView` sized
+the whole panel as though it held one row (178 pt empty, 179 pt with 12 entries). A ScrollView is
+content with any height, so `NSHostingView.fittingSize` returns near its minimum, and a
+`LazyVStack` compounds it by only building the rows that fit. Fix: `PanelController` measures
+`HistoryRowsView` in a throwaway hosting view, then passes an explicit `listHeight` in, and the
+rows use a plain `VStack`. Same 12 entries now produce 438 pt. The self test had *passed* this
+bug because it only asserted "taller than empty", so it now asserts a real threshold. Lesson for
+later milestones: assert magnitudes, not directions.
+
+### Next: M3, full panel UI and keyboard model
+
+Section 8 is the spec and section 10 M3 the checklist: cards with hover actions, pin and delete
+affordances, full keyboard navigation (arrows, Return, option-Return, command-P, Delete, Escape),
+and first-item focus so the Win+V muscle memory of "shortcut then Return" works. `ItemRowView` and
+`HistoryRowsView` are the placeholders to grow into it. Note that the panel holds key focus while
+open (section 6.7), so keyboard handling belongs in the panel, not in a global monitor.

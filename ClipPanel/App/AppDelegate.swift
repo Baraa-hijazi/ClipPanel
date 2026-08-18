@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import OSLog
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Created here rather than in `applicationDidFinishLaunching` so the menu bar scene can
@@ -15,6 +16,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // takeover, no window on launch.
         NSApp.setActivationPolicy(.accessory)
 
+        // Unit tests are hosted in this app, and a live monitor would poll the real clipboard
+        // (raising the macOS 26 privacy alert and hanging the run) and claim the global hot key
+        // out from under a copy of the app the user may already be running.
+        guard !isHostingTests else {
+            Log.app.info("Test host launch: capture and hot key left unstarted")
+            return
+        }
+
         coordinator.start()
 
         #if DEBUG
@@ -24,5 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         coordinator.stop()
+    }
+
+    private var isHostingTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil
     }
 }

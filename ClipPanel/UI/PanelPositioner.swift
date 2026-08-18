@@ -5,16 +5,22 @@
 
 import AppKit
 
-/// Works out where the panel should sit. Pure functions so the geometry is unit testable
-/// without a window on screen.
+/// The bits of NSScreen the geometry needs, as plain values so the maths is testable without a
+/// display attached.
+nonisolated struct ScreenGeometry: Sendable, Equatable {
+    let frame: CGRect
+    let visibleFrame: CGRect
+}
+
+/// Works out where the panel should sit.
 ///
-/// M1 anchors to the mouse pointer. M3/M4 will prefer the text caret via the accessibility
+/// M1/M2 anchor to the mouse pointer. M3/M4 will prefer the text caret via the accessibility
 /// API and fall back to this.
 nonisolated enum PanelPositioner {
-    /// Screen-coordinate origin (bottom-left, AppKit convention) for a panel of `size`
-    /// hanging below and slightly right of `anchor`, clamped to stay fully on screen.
-    static func origin(for size: CGSize, near anchor: CGPoint, screens: [NSScreen]) -> CGPoint {
-        let screen = screens.first { NSPointInRect(anchor, $0.frame) } ?? screens.first
+    /// Screen-coordinate origin (bottom-left, AppKit convention) for a panel of `size` hanging
+    /// below and slightly right of `anchor`, clamped to stay fully on screen.
+    static func origin(for size: CGSize, near anchor: CGPoint, screens: [ScreenGeometry]) -> CGPoint {
+        let screen = screens.first { $0.frame.contains(anchor) } ?? screens.first
 
         guard let visible = screen?.visibleFrame else {
             return CGPoint(x: anchor.x, y: anchor.y - size.height)
@@ -33,7 +39,15 @@ nonisolated enum PanelPositioner {
         return CGPoint(x: x, y: y)
     }
 
-    /// Degrades gracefully when the panel is larger than the space available.
+    @MainActor
+    static func currentScreens() -> [ScreenGeometry] {
+        NSScreen.screens.map {
+            ScreenGeometry(frame: $0.frame, visibleFrame: $0.visibleFrame)
+        }
+    }
+
+    /// Degrades predictably when the panel is larger than the space available: pin to the
+    /// lower bound rather than producing an inverted range.
     private static func clamp(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
         guard upper > lower else { return lower }
         return min(max(value, lower), upper)

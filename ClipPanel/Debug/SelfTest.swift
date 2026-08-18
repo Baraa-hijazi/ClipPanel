@@ -85,6 +85,54 @@ enum SelfTest {
               NSWorkspace.shared.frontmostApplication?.bundleIdentifier == frontmostBeforeShow,
               detail: NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none")
 
+        // MARK: M2, capture pipeline
+
+        print("")
+        print("M2 capture pipeline")
+        check("clipboard monitor is polling", coordinator.monitorIsRunning)
+        print("INFO  pasteboard access: \(coordinator.pasteboardAccess.rawValue)")
+        check("history starts empty", coordinator.store.isEmpty)
+
+        // Synthetic entries rather than the real clipboard: the self test must not disturb
+        // whatever the user had copied, nor read it.
+        let syntheticCount = 12
+        for index in 0..<syntheticCount {
+            let snapshot = PasteboardSnapshot(items: [[
+                ClipItem.Representation(
+                    type: PasteboardTypes.plainText,
+                    data: Data("synthetic entry \(index)".utf8)
+                ),
+            ]])
+            if let item = ItemFactory.make(from: snapshot, sourceBundleID: "com.apple.TextEdit") {
+                coordinator.store.record(item)
+            }
+        }
+        check("store recorded every synthetic entry",
+              coordinator.store.items.count == syntheticCount,
+              detail: "\(coordinator.store.items.count) of \(syntheticCount)")
+
+        coordinator.showPanel()
+        try? await Task.sleep(for: .milliseconds(300))
+        let populated = coordinator.panelDiagnostics
+        let emptyHeight = shown.frame.height
+
+        // Deliberately a real threshold rather than "taller than empty": a ScrollView that
+        // collapses to one row still grows by a point or two, and that bug shipped past a
+        // greater-than check once already.
+        let minimumExpectedHeight: CGFloat = 250
+        check("panel grew to fit the list",
+              populated.frame.height >= minimumExpectedHeight,
+              detail: "\(Int(emptyHeight)) pt empty, \(Int(populated.frame.height)) pt with "
+                      + "\(syntheticCount) entries, expected at least \(Int(minimumExpectedHeight))")
+        check("panel height respects the cap",
+              populated.frame.height <= PanelMetrics.maxHeight,
+              detail: "cap \(Int(PanelMetrics.maxHeight)) pt")
+        check("populated panel still fits on screen", populated.fitsOnAScreen)
+
+        coordinator.clearHistory()
+        check("Clear All empties the list", coordinator.store.isEmpty)
+        coordinator.hidePanel()
+
         print("----------------------")
         if failures.isEmpty {
             print("all checks passed")

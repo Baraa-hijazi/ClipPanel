@@ -8,6 +8,7 @@
 
 /* Begin PBXFileReference section */
 		02400965303451A5008BE264 /* ClipPanel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ClipPanel.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0240A00230345200008BE264 /* ClipPanelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClipPanelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +17,22 @@
 			path = ClipPanel;
 			sourceTree = "<group>";
 		};
+		0240A00330345200008BE264 /* ClipPanelTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ClipPanelTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		02400962303451A5008BE264 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0240A00530345200008BE264 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -41,6 +54,7 @@
 			isa = PBXGroup;
 			children = (
 				02400965303451A5008BE264 /* ClipPanel.app */,
+				0240A00230345200008BE264 /* ClipPanelTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,7 +84,48 @@
 			productReference = 02400965303451A5008BE264 /* ClipPanel.app */;
 			productType = "com.apple.product-type.application";
 		};
+		0240A00130345200008BE264 /* ClipPanelTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0240A00930345200008BE264 /* Build configuration list for PBXNativeTarget "ClipPanelTests" */;
+			buildPhases = (
+				0240A00430345200008BE264 /* Sources */,
+				0240A00530345200008BE264 /* Frameworks */,
+				0240A00630345200008BE264 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0240A00730345200008BE264 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				0240A00330345200008BE264 /* ClipPanelTests */,
+			);
+			name = ClipPanelTests;
+			packageProductDependencies = (
+			);
+			productName = ClipPanelTests;
+			productReference = 0240A00230345200008BE264 /* ClipPanelTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		0240A00830345200008BE264 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0240095D303451A5008BE264 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 02400964303451A5008BE264;
+			remoteInfo = ClipPanel;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		0240A00730345200008BE264 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 02400964303451A5008BE264 /* ClipPanel */;
+			targetProxy = 0240A00830345200008BE264 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		0240095D303451A5008BE264 /* Project object */ = {
@@ -100,6 +155,7 @@
 			projectRoot = "";
 			targets = (
 				02400964303451A5008BE264 /* ClipPanel */,
+				0240A00130345200008BE264 /* ClipPanelTests */,
 			);
 		};
 /* End PBXProject section */
@@ -112,10 +168,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0240A00630345200008BE264 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		02400961303451A5008BE264 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0240A00430345200008BE264 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -297,6 +367,50 @@
 			};
 			name = Release;
 		};
+		0240A00A30345200008BE264 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.baraahijazi.ClipPanelTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ClipPanel.app/Contents/MacOS/ClipPanel";
+			};
+			name = Debug;
+		};
+		0240A00B30345200008BE264 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.baraahijazi.ClipPanelTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ClipPanel.app/Contents/MacOS/ClipPanel";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -314,6 +428,15 @@
 			buildConfigurations = (
 				02400971303451A6008BE264 /* Debug */,
 				02400972303451A6008BE264 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0240A00930345200008BE264 /* Build configuration list for PBXNativeTarget "ClipPanelTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0240A00A30345200008BE264 /* Debug */,
+				0240A00B30345200008BE264 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
