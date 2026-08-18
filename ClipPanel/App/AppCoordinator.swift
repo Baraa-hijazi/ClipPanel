@@ -15,6 +15,10 @@ final class AppCoordinator {
     let permissions: PermissionsModel
 
     private let hotKeys = HotKeyManager()
+    private let panicHotKey = HotKeyManager()
+    private let authenticator: any Authenticating
+    /// Set when the screen locks while the Touch ID gate is on; cleared by a successful check.
+    private(set) var panelNeedsAuthentication = false
     private let pasteboard: any PasteboardSource & PasteboardWriting
     private let monitor: ClipboardMonitor
     private let paster: PasteInjector
@@ -68,9 +72,11 @@ final class AppCoordinator {
 
     init(
         pasteboard: any PasteboardSource & PasteboardWriting = SystemPasteboard(),
-        keystrokes: any KeystrokeSending = SystemKeystrokeSender()
+        keystrokes: any KeystrokeSending = SystemKeystrokeSender(),
+        authenticator: any Authenticating = SystemAuthenticator()
     ) {
         self.pasteboard = pasteboard
+        self.authenticator = authenticator
 
         // Built through locals rather than self, so each piece can capture the one before it while
         // self is still being initialised.
@@ -143,10 +149,9 @@ final class AppCoordinator {
             Log.app.error("Pasteboard access denied; capture is inert until the user allows it")
         }
 
-        if AppPreferences.clearOnScreenLock {
-            lockObserver.start()
-        }
+        refreshLockObserver()
         startExpiryTimer()
+        registerPanicHotKeyIfEnabled()
 
         if presentOnboarding, !AppPreferences.hasCompletedOnboarding {
             onboardingWindow.show()
@@ -156,6 +161,7 @@ final class AppCoordinator {
     func stop() {
         monitor.stop()
         hotKeys.unregister()
+        panicHotKey.unregister()
         lockObserver.stop()
         expiryTimer?.invalidate()
         expiryTimer = nil
@@ -196,6 +202,9 @@ final class AppCoordinator {
         if AppPreferences.clearOnScreenLock {
             store.clearUnpinned()
         }
+        if AppPreferences.requireAuthAfterLock {
+            panelNeedsAuthentication = true
+        }
         hidePanel()
     }
 
@@ -231,10 +240,44 @@ final class AppCoordinator {
 
     /// The observer runs when any lock-reactive feature is on; the actions gate themselves.
     private func refreshLockObserver() {
-        if AppPreferences.clearOnScreenLock {
+        if AppPreferences.clearOnScreenLock || AppPreferences.requireAuthAfterLock {
             lockObserver.start()
         } else {
             lockObserver.stop()
+        }
+    }
+
+    var requireAuthAfterLock: Bool {
+        get { AppPreferences.requireAuthAfterLock }
+        set {
+            AppPreferences.requireAuthAfterLock = newValue
+            if !newValue { panelNeedsAuthentication = false }
+            refreshLockObserver()
+        }
+    }
+
+    var panicWipeHotKeyEnabled: Bool {
+        get { AppPreferences.panicWipeHotKeyEnabled }
+        set {
+            AppPreferences.panicWipeHotKeyEnabled = newValue
+            registerPanicHotKeyIfEnabled()
+        }
+    }
+
+    /// Everything unpinned, gone, now. Bound to the menu item and, when enabled, ⌃⌥⌘⌫.
+    func panicWipe() {
+        store.clearUnpinned()
+        hidePanel()
+        Log.app.info("Panic wipe")
+    }
+
+    private func registerPanicHotKeyIfEnabled() {
+        if AppPreferences.panicWipeHotKeyEnabled {
+            _ = panicHotKey.register(shortcut: .panicDefault) { [weak self] in
+                self?.panicWipe()
+            }
+        } else {
+            panicHotKey.unregister()
         }
     }
 
@@ -320,16 +363,29 @@ final class AppCoordinator {
     // MARK: - Panel
 
     func togglePanel() {
-        // Cheap, and the only reliable way to notice a permission change: macOS never calls back.
-        permissions.refresh()
-        store.sweepExpired()
-        panel.toggle()
+        if panel.isVisible {
+            panel.hide()
+            return
+        }
+        showPanel()
     }
 
     func showPanel() {
+        // Cheap, and the only reliable way to notice a permission change: macOS never calls back.
         permissions.refresh()
         store.sweepExpired()
-        panel.show()
+
+        guard AppPreferences.requireAuthAfterLock, panelNeedsAuthentication else {
+            panel.show()
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            if await authenticator.authenticate(reason: "unlock your clipboard history") {
+                panelNeedsAuthentication = false
+                panel.show()
+            }
+        }
     }
 
     func hidePanel() {

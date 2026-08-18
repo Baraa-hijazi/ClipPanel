@@ -260,7 +260,7 @@ enum SelfTest {
               SecretDetector.assess(text: "meeting notes for tuesday", sourceBundleID: "com.apple.Terminal")
                   == .ordinary)
 
-        var guardedEntry = PasteboardSnapshot(items: [[
+        let guardedEntry = PasteboardSnapshot(items: [[
             ClipItem.Representation(type: PasteboardTypes.plainText, data: Data("P@ssw0rd!2024".utf8)),
         ]])
         if var made = ItemFactory.make(from: guardedEntry, sourceBundleID: "com.apple.Safari") {

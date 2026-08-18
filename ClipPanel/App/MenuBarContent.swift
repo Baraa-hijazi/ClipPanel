@@ -43,6 +43,11 @@ struct MenuBarContent: View {
         }
         .disabled(coordinator.store.unpinnedCount == 0)
 
+        Button("Panic Wipe") {
+            coordinator.panicWipe()
+        }
+        .disabled(coordinator.store.unpinnedCount == 0)
+
         Divider()
 
         Button("Settings...") {

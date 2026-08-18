@@ -10,6 +10,10 @@
 //  permission at all, because the OS matches the combination and only tells us when it
 //  fires. There is no modern Swift replacement for this API.
 //
+//  Each HotKeyManager instance owns ONE hot key (the app has two: the panel and the panic
+//  wipe). The Carbon event handler is installed once per process, because a handler per
+//  instance would deliver every hot key event to every handler and run each action twice.
+//
 
 import AppKit
 import Carbon.HIToolbox
@@ -22,44 +26,35 @@ import OSLog
 /// refuses to send a non-Sendable object across that boundary, so the actions live in this
 /// main-actor-isolated table instead and the callback looks them up by id.
 @MainActor private var hotKeyActions: [UInt32: () -> Void] = [:]
+@MainActor private var carbonHandlerInstalled = false
+@MainActor private var nextHotKeyID: UInt32 = 1
 
 final class HotKeyManager {
     /// Four-char code identifying our hot keys, 'CLP1'.
     private static let signature: OSType = 0x434C_5031
-    private static let panelHotKeyID: UInt32 = 1
 
-    private var eventHandler: EventHandlerRef?
+    /// This instance's slot in the action table, unique per instance for the process lifetime.
+    private let hotKeyID: UInt32
     private var hotKeyRef: EventHotKeyRef?
+
+    init() {
+        hotKeyID = nextHotKeyID
+        nextHotKeyID += 1
+    }
 
     /// Registers `shortcut` system-wide. Returns false if the combination is unavailable,
     /// which usually means another running app already owns it.
     func register(shortcut: GlobalShortcut, action: @escaping () -> Void) -> Bool {
         unregister()
-        hotKeyActions[Self.panelHotKeyID] = action
 
-        var eventType = EventTypeSpec(
-            eventClass: OSType(kEventClassKeyboard),
-            eventKind: UInt32(kEventHotKeyPressed)
-        )
-        let installStatus = InstallEventHandler(
-            GetApplicationEventTarget(),
-            clipPanelHotKeyCallback,
-            1,
-            &eventType,
-            nil,
-            &eventHandler
-        )
-        guard installStatus == noErr else {
-            Log.hotKey.error("InstallEventHandler failed with status \(installStatus)")
-            unregister()
-            return false
-        }
+        guard Self.installCarbonHandlerIfNeeded() else { return false }
+        hotKeyActions[hotKeyID] = action
 
         var ref: EventHotKeyRef?
         let registerStatus = RegisterEventHotKey(
             shortcut.keyCode,
             shortcut.carbonModifiers,
-            EventHotKeyID(signature: Self.signature, id: Self.panelHotKeyID),
+            EventHotKeyID(signature: Self.signature, id: hotKeyID),
             GetApplicationEventTarget(),
             0,
             &ref
@@ -71,25 +66,45 @@ final class HotKeyManager {
         }
 
         hotKeyRef = ref
-        Log.hotKey.info("Registered panel hot key \(shortcut.description, privacy: .public)")
+        Log.hotKey.info("Registered hot key \(shortcut.description, privacy: .public)")
         return true
     }
 
-    /// Releases the hot key and its handler. Safe to call when nothing is registered.
+    /// Releases the hot key. Safe to call when nothing is registered. The process-wide Carbon
+    /// handler stays installed; with no actions in the table it does nothing.
     func unregister() {
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
             self.hotKeyRef = nil
         }
-        if let eventHandler {
-            RemoveEventHandler(eventHandler)
-            self.eventHandler = nil
+        hotKeyActions[hotKeyID] = nil
+    }
+
+    private static func installCarbonHandlerIfNeeded() -> Bool {
+        guard !carbonHandlerInstalled else { return true }
+
+        var eventType = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
+        )
+        let status = InstallEventHandler(
+            GetApplicationEventTarget(),
+            clipPanelHotKeyCallback,
+            1,
+            &eventType,
+            nil,
+            nil
+        )
+        guard status == noErr else {
+            Log.hotKey.error("InstallEventHandler failed with status \(status)")
+            return false
         }
-        hotKeyActions[Self.panelHotKeyID] = nil
+        carbonHandlerInstalled = true
+        return true
     }
 }
 
-/// Carbon C callback for kEventHotKeyPressed.
+/// Carbon C callback for kEventHotKeyPressed, installed once per process.
 private nonisolated func clipPanelHotKeyCallback(
     _ callRef: EventHandlerCallRef?,
     _ eventRef: EventRef?,

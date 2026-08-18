@@ -24,6 +24,14 @@ nonisolated struct GlobalShortcut: Equatable, Sendable {
         carbonModifiers: UInt32(controlKey | cmdKey),
         keyLabel: "V"
     )
+
+    /// Panic wipe: clear every unpinned entry, instantly, from anywhere. Deliberately awkward to
+    /// hit by accident.
+    static let panicDefault = GlobalShortcut(
+        keyCode: UInt32(kVK_Delete),
+        carbonModifiers: UInt32(controlKey | optionKey | cmdKey),
+        keyLabel: "⌫"
+    )
 }
 
 extension GlobalShortcut: CustomStringConvertible {

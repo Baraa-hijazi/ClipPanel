@@ -144,6 +144,16 @@ private struct PrivacySettingsTab: View {
                 Text("Pinned entries are kept. Off by default, because losing history at every lock is usually the worse trade.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Toggle("Require Touch ID or password after the screen locks", isOn: requireAuth)
+                Text("The first time the panel opens after a lock, macOS asks you to prove it is you.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Panic wipe shortcut (⌃⌥⌘⌫)", isOn: panicHotKey)
+                Text("Clears every unpinned entry instantly, from anywhere. Also in the menu bar menu.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Entries that look like passwords") {
@@ -268,6 +278,20 @@ private struct PrivacySettingsTab: View {
         Binding(
             get: { coordinator.clearOnScreenLock },
             set: { coordinator.clearOnScreenLock = $0 }
+        )
+    }
+
+    private var requireAuth: Binding<Bool> {
+        Binding(
+            get: { coordinator.requireAuthAfterLock },
+            set: { coordinator.requireAuthAfterLock = $0 }
+        )
+    }
+
+    private var panicHotKey: Binding<Bool> {
+        Binding(
+            get: { coordinator.panicWipeHotKeyEnabled },
+            set: { coordinator.panicWipeHotKeyEnabled = $0 }
         )
     }
 }
