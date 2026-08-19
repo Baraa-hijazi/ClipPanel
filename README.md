@@ -110,6 +110,30 @@ The honest version, because a clipboard manager is by nature a pile of sensitive
 
 Deliberately absent: cloud sync. That is a security decision, not a missing feature.
 
+## Installing
+
+Two ways, pick one.
+
+**Build it yourself (recommended until releases are notarized).** Requires Xcode 26 or later.
+Because the app is built on your own machine it carries no quarantine flag, so it launches without
+any Gatekeeper ceremony, and you can read every line of what you just built.
+
+```bash
+git clone https://github.com/BaraaHijazi/ClipPanel.git
+cd ClipPanel
+make install
+```
+
+**Download a release.** Grab the zip from the Releases page, unzip, and move `ClipPanel.app` to
+Applications. Until releases are signed with a Developer ID, macOS will refuse the first launch
+with "Apple could not verify". That is Gatekeeper doing its job on an unsigned download. If you
+decide to trust it (the source is right here to check), the path is: attempt to open the app once,
+then System Settings, Privacy and Security, scroll to the ClipPanel notice, Open Anyway, and
+confirm. You only do this once. Notarized releases, which skip all of that, are planned.
+
+First launch shows a short onboarding that walks through the two permissions (clipboard access,
+and optionally Accessibility for automatic pasting).
+
 ## Building
 
 Requires Xcode 26 or later.
