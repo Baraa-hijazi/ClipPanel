@@ -119,7 +119,7 @@ Because the app is built on your own machine it carries no quarantine flag, so i
 any Gatekeeper ceremony, and you can read every line of what you just built.
 
 ```bash
-git clone https://github.com/BaraaHijazi/ClipPanel.git
+git clone https://github.com/Baraa-hijazi/ClipPanel.git
 cd ClipPanel
 make install
 ```
