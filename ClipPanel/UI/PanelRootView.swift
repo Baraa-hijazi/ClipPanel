@@ -18,6 +18,8 @@ struct PanelRootView: View {
     /// collapse the panel to a single row.
     var listHeight: CGFloat = PanelMetrics.listMaxHeight
 
+    @FocusState private var searchFieldFocused: Bool
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -50,23 +52,27 @@ struct PanelRootView: View {
         }
     }
 
-    /// Always visible while there are entries, because an invisible feature is a missing one:
-    /// the row is both the affordance ("type to search") and the query display.
+    /// A real text field, not a display row: clickable, shows a cursor, supports text selection
+    /// and input-method composition (CJK, dead keys), none of which the earlier fake row did.
+    ///
+    /// It holds focus while the panel is open, so the navigation keys are intercepted here via
+    /// onKeyPress and routed back into the panel's normal command handling BEFORE the field
+    /// editor can eat them: arrows move the list selection, Return pastes the top hit,
+    /// option-Return pastes as plain text, Escape backs out (query first, panel second), and
+    /// Backspace on an empty query keeps its original meaning of deleting the selected entry.
     private var searchRow: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            if selection.query.isEmpty {
-                Text("Type to search")
-                    .font(.callout)
-                    .foregroundStyle(.tertiary)
-            } else {
-                Text(selection.query)
-                    .font(.callout)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                Spacer(minLength: 8)
+            TextField("Type to search", text: queryBinding)
+                .textFieldStyle(.plain)
+                .font(.callout)
+                .focused($searchFieldFocused)
+                .onKeyPress(phases: .down) { press in
+                    routeFieldKey(press)
+                }
+            if !selection.query.isEmpty {
                 Text("esc clears")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -74,6 +80,45 @@ struct PanelRootView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .onTapGesture { searchFieldFocused = true }
+        .onAppear { searchFieldFocused = true }
+        .onChange(of: selection.searchFocusRequest) { _, _ in
+            searchFieldFocused = true
+        }
+        .onChange(of: selection.query) { _, _ in
+            actions.queryDidChange()
+        }
+    }
+
+    private var queryBinding: Binding<String> {
+        Binding(
+            get: { selection.query },
+            set: { selection.query = $0 }
+        )
+    }
+
+    private func routeFieldKey(_ press: KeyPress) -> KeyPress.Result {
+        let command: PanelKeyCommand?
+        switch press.key {
+        case .upArrow:
+            command = .moveUp
+        case .downArrow:
+            command = .moveDown
+        case .return:
+            command = press.modifiers.contains(.option) ? .activateAsPlainText : .activate
+        case .escape:
+            command = .cancel
+        case .delete:
+            // Backspace edits the query while one is active; the field handles that itself.
+            command = selection.query.isEmpty ? .deleteBackward : nil
+        case .deleteForward:
+            command = .delete
+        default:
+            command = nil
+        }
+        guard let command else { return .ignored }
+        return actions.handleKey(command) ? .handled : .ignored
     }
 
     private var noMatchesState: some View {

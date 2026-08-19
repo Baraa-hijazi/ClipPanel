@@ -60,7 +60,9 @@ final class PanelController: NSObject, NSWindowDelegate {
         toggleReveal: { [weak self] id in self?.selection.toggleReveal(id: id) },
         delete: { [weak self] id in self?.delete(id) },
         clearAll: { [weak self] in self?.clearAll() },
-        close: { [weak self] in self?.hide() }
+        close: { [weak self] in self?.hide() },
+        queryDidChange: { [weak self] in self?.queryDidChange() },
+        handleKey: { [weak self] command in self?.handle(command) ?? false }
     )
 
     // MARK: - Showing and hiding
@@ -77,6 +79,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         // Opening always starts with no query and the newest entry selected, so the Win+V habit
         // of "shortcut, then Return" pastes the most recent copy.
         selection.query = ""
+        lastHandledQuery = ""
         selection.reset(to: store.items)
 
         lastAnchor = NSEvent.mouseLocation
@@ -94,6 +97,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         // hand focus back (appToRestoreFocusTo) before synthesizing command-V.
         panel.orderFrontRegardless()
         panel.makeKey()
+        selection.searchFocusRequest += 1
 
         Log.panel.debug("Panel shown, key: \(panel.isKeyWindow), entries: \(self.store.items.count)")
     }
@@ -238,9 +242,16 @@ final class PanelController: NSObject, NSWindowDelegate {
         return alert.runModal() == .alertFirstButtonReturn
     }
 
+    /// The last query this controller reacted to. Guards queryDidChange against double firing:
+    /// a keyboard command mutates the query and reports the change directly, and the view's
+    /// onChange then reports the same edit a runloop later.
+    private var lastHandledQuery = ""
+
     /// Selection jumps to the first match on every keystroke, so Return always pastes the top
     /// hit, and the panel resizes to the filtered list.
     private func queryDidChange() {
+        guard selection.query != lastHandledQuery else { return }
+        lastHandledQuery = selection.query
         selection.reset(to: visibleItems)
         if let window, window.isVisible {
             applySizeAndPosition(to: window)

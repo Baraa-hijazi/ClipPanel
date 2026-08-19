@@ -741,9 +741,18 @@ Two decisions worth recording:
    list; the keyboard commands, the selection, the size measurement, and the rendered rows all
    consume it, so what the arrows move over and what is drawn cannot disagree.
 
-Known limitation, deliberate for now: without a real text view there is no input-method composition,
-so dead keys and CJK input do not compose in the search box. Trading the current simplicity for an
-NSTextField is the follow-up if that audience needs serving.
+~~Known limitation, deliberate for now: without a real text view there is no input-method
+composition, so dead keys and CJK input do not compose in the search box.~~ Resolved the next day:
+the display row was replaced with a real TextField after the obvious complaint arrived ("the search
+is not clickable"). The field is clickable, shows a cursor, supports selection and input-method
+composition. Keeping the keyboard model intact required two layers: the deterministic one is a
+`sendEvent` override in `PanelWindow` that routes the unconditional list keys (arrows, Return,
+forward delete, Escape) into the command handler before the field editor sees them, EXCEPT while
+marked text exists, because during CJK composition Return confirms the composition and arrows
+navigate candidates. Backspace stays with the field, which knows the query state: it edits an
+active query and deletes the selected entry otherwise (routed via onKeyPress). The controller's
+query handling is guarded by a last-handled check, since field edits and keyboard commands report
+the same change through two paths a runloop apart.
 
 Incidental fix: `verify-release.sh`'s hardened-runtime check was flaky under `pipefail`, because
 `grep -q` exits on first match and can SIGPIPE `codesign`, failing the pipeline despite the flag

@@ -15,6 +15,13 @@ struct PanelActions {
     var delete: (ClipItem.ID) -> Void
     var clearAll: () -> Void
     var close: () -> Void
+    /// Called when the search field edits the query, so the controller can move selection to the
+    /// first match and resize the panel. Idempotent on the controller side, because keyboard
+    /// commands report the same change through their own path.
+    var queryDidChange: () -> Void
+    /// Routes a keyboard command from the focused search field back into the panel's normal key
+    /// handling. Returns true when consumed, so the field knows whether to keep the event.
+    var handleKey: (PanelKeyCommand) -> Bool
 
     static let inert = PanelActions(
         activate: { _ in },
@@ -23,6 +30,8 @@ struct PanelActions {
         toggleReveal: { _ in },
         delete: { _ in },
         clearAll: {},
-        close: {}
+        close: {},
+        queryDidChange: {},
+        handleKey: { _ in false }
     )
 }

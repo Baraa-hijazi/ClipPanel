@@ -21,6 +21,11 @@ final class PanelSelection {
     /// clears it explicitly on show and on Escape.
     var query: String = ""
 
+    /// Bumped by the controller each time the panel is shown. The view watches it and moves focus
+    /// into the search field, because onAppear only fires the first time the panel's view enters
+    /// the hierarchy; the window is merely ordered out on hide, not torn down.
+    var searchFocusRequest = 0
+
     /// Guarded entries the user has unmasked this panel session. Cleared every time the panel
     /// opens, so a revealed password does not stay readable across openings.
     private(set) var revealedIDs: Set<ClipItem.ID> = []

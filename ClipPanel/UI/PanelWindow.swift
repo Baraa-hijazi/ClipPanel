@@ -43,6 +43,48 @@ final class PanelWindow: NSPanel {
         _ = onKeyCommand?(.cancel)
     }
 
+    /// The search field holds focus while the panel is open, which normally means the field
+    /// editor consumes every keystroke. The keys that belong to the LIST rather than the text
+    /// (arrows, Return, forward delete, Escape) are intercepted here, before dispatch, so the
+    /// keyboard model works identically whether or not the field has focus.
+    ///
+    /// The one exception is input-method composition: while marked text exists (typing Japanese
+    /// or Chinese, dead keys), Return confirms the composition and arrows navigate candidates, so
+    /// everything passes through untouched until composition ends.
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown,
+           !isComposingText,
+           let command = listCommand(for: event),
+           onKeyCommand?(command) == true {
+            return
+        }
+        super.sendEvent(event)
+    }
+
+    private var isComposingText: Bool {
+        (firstResponder as? NSTextView)?.hasMarkedText() ?? false
+    }
+
+    /// Keys that always mean the list, never the text field. Backspace is deliberately absent:
+    /// it edits the query while one is active, so its routing is decided by the field, which
+    /// knows the query state.
+    private func listCommand(for event: NSEvent) -> PanelKeyCommand? {
+        switch Int(event.keyCode) {
+        case kVK_UpArrow:
+            return .moveUp
+        case kVK_DownArrow:
+            return .moveDown
+        case kVK_Return, kVK_ANSI_KeypadEnter:
+            return event.modifierFlags.contains(.option) ? .activateAsPlainText : .activate
+        case kVK_ForwardDelete:
+            return .delete
+        case kVK_Escape:
+            return .cancel
+        default:
+            return nil
+        }
+    }
+
     override func keyDown(with event: NSEvent) {
         guard let command = command(for: event), onKeyCommand?(command) == true else {
             super.keyDown(with: event)
