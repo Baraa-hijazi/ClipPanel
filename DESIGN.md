@@ -719,3 +719,33 @@ One rule in the eviction loop is load-bearing and easy to get wrong: the budget 
 last remaining unpinned entry. Without that, a screenshot larger than the whole budget would be
 captured and then immediately evicted to satisfy the budget, reproducing the exact "screenshots
 silently vanish" bug from the other direction. A test pins this down.
+
+### Search (2026-08-19)
+
+Type-to-filter, Maccy-style, because the panel already owns the keyboard: no search field, no focus
+battle with the non-activating window. Printable keystrokes build a query shown in a search row under
+the header, Backspace edits it (and only deletes the selected entry when the query is empty, keeping
+the original binding), Escape backs out one layer at a time: query first, panel second. Selection
+jumps to the first match on every keystroke so "type a few letters, Return" pastes the top hit.
+Matching is case- and diacritic-insensitive substring with AND-combined tokens, over text previews,
+file paths, and the source app's name.
+
+Two decisions worth recording:
+
+1. **Guarded entries never participate in a search, not even by app name.** A masked row that
+   appears or disappears as you type is a confirmation oracle: type the password you suspect and the
+   filter confirms it character by character without ever unmasking anything. `SearchFilter` drops
+   guarded entries from any non-empty query, all or nothing, and the no-matches state says so when
+   guarded entries exist. Tests pin the exclusion down, including the app-name path.
+2. **The view never filters for itself.** `PanelController.visibleItems` is the single filtered
+   list; the keyboard commands, the selection, the size measurement, and the rendered rows all
+   consume it, so what the arrows move over and what is drawn cannot disagree.
+
+Known limitation, deliberate for now: without a real text view there is no input-method composition,
+so dead keys and CJK input do not compose in the search box. Trading the current simplicity for an
+NSTextField is the follow-up if that audience needs serving.
+
+Incidental fix: `verify-release.sh`'s hardened-runtime check was flaky under `pipefail`, because
+`grep -q` exits on first match and can SIGPIPE `codesign`, failing the pipeline despite the flag
+being present. Output is now captured before grepping, and the comment in the script warns the next
+person not to simplify it back into a pipe.

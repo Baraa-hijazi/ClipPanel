@@ -8,6 +8,9 @@ import SwiftUI
 struct PanelRootView: View {
     let store: HistoryStore
     let selection: PanelSelection
+    /// The search-filtered entries, computed by the controller. The view never filters for
+    /// itself, so what is drawn and what the keyboard operates on cannot disagree.
+    let visibleItems: [ClipItem]
     let pasteboardAccess: PasteboardAccess
     var actions: PanelActions = .inert
     /// Height the scrolling list is pinned to. The controller measures the rows first and passes
@@ -37,8 +40,56 @@ struct PanelRootView: View {
         } else if store.isEmpty {
             emptyState
         } else {
-            list
+            searchRow
+            Divider()
+            if visibleItems.isEmpty {
+                noMatchesState
+            } else {
+                list
+            }
         }
+    }
+
+    /// Always visible while there are entries, because an invisible feature is a missing one:
+    /// the row is both the affordance ("type to search") and the query display.
+    private var searchRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if selection.query.isEmpty {
+                Text("Type to search")
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+            } else {
+                Text(selection.query)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                Spacer(minLength: 8)
+                Text("esc clears")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+    }
+
+    private var noMatchesState: some View {
+        VStack(spacing: 6) {
+            Text("No matches.")
+                .font(.callout)
+            if store.items.contains(where: \.isGuarded) {
+                Text("Entries marked as sensitive stay hidden while searching.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 22)
     }
 
     private var header: some View {
@@ -70,7 +121,7 @@ struct PanelRootView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 HistoryRowsView(
-                    items: store.items,
+                    items: visibleItems,
                     selectedID: selection.selectedID,
                     revealedIDs: selection.revealedIDs,
                     actions: actions,
@@ -126,6 +177,7 @@ struct PanelRootView: View {
     PanelRootView(
         store: HistoryStore(),
         selection: PanelSelection(),
+        visibleItems: [],
         pasteboardAccess: .allowed,
         listHeight: 200
     )

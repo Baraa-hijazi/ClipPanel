@@ -14,7 +14,11 @@ enum PanelKeyCommand: Equatable {
     case activateAsPlainText
     case togglePin
     case toggleReveal
+    /// Forward Delete: always removes the selected entry.
     case delete
+    /// Backspace: edits the search query when one is active, removes the entry otherwise.
+    case deleteBackward
+    case typeCharacter(Character)
     case cancel
 }
 
@@ -70,12 +74,38 @@ final class PanelWindow: NSPanel {
             return .moveDown
         case kVK_Return, kVK_ANSI_KeypadEnter:
             return event.modifierFlags.contains(.option) ? .activateAsPlainText : .activate
-        case kVK_Delete, kVK_ForwardDelete:
+        case kVK_Delete:
+            return .deleteBackward
+        case kVK_ForwardDelete:
             return .delete
         case kVK_Escape:
             return .cancel
+        case kVK_Tab:
+            return nil
         default:
+            return typedCharacter(from: event)
+        }
+    }
+
+    /// Printable keystrokes become search input. Command- and control-modified keys are left for
+    /// the responder chain, and the private function-key plane (arrows, F-keys) is filtered out.
+    ///
+    /// Known limitation, recorded in DESIGN.md: without a real text view there is no input-method
+    /// composition, so dead keys and CJK input do not compose here. A follow-up can trade this
+    /// simplicity for an NSTextField if that audience needs serving.
+    private func typedCharacter(from event: NSEvent) -> PanelKeyCommand? {
+        guard !event.modifierFlags.contains(.command),
+              !event.modifierFlags.contains(.control),
+              let characters = event.charactersIgnoringModifiers,
+              let character = characters.first,
+              let scalar = character.unicodeScalars.first,
+              !(0xF700...0xF8FF).contains(scalar.value),
+              scalar.value >= 0x20
+        else { return nil }
+
+        if character.isWhitespace, character != " " {
             return nil
         }
+        return .typeCharacter(character)
     }
 }

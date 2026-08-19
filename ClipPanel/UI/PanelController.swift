@@ -44,6 +44,15 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     var isVisible: Bool { window?.isVisible ?? false }
 
+    /// The entries the panel is actually showing: the history filtered by the live query.
+    /// Every keyboard command and the view itself operate on this, never on `store.items`
+    /// directly, so search cannot desynchronise what the arrows move over from what is drawn.
+    var visibleItems: [ClipItem] {
+        SearchFilter.filter(store.items, query: selection.query) {
+            AppNameResolver.shared.displayName(for: $0)
+        }
+    }
+
     private lazy var actions = PanelActions(
         activate: { [weak self] item in self?.activate(item, plainTextOnly: false) },
         activateAsPlainText: { [weak self] item in self?.activate(item, plainTextOnly: true) },
@@ -65,8 +74,9 @@ final class PanelController: NSObject, NSWindowDelegate {
         window = panel
 
         rememberFrontmostApp()
-        // Opening always starts at the newest entry, so the Win+V habit of "shortcut, then
-        // Return" pastes the most recent copy.
+        // Opening always starts with no query and the newest entry selected, so the Win+V habit
+        // of "shortcut, then Return" pastes the most recent copy.
+        selection.query = ""
         selection.reset(to: store.items)
 
         lastAnchor = NSEvent.mouseLocation
@@ -100,9 +110,10 @@ final class PanelController: NSObject, NSWindowDelegate {
     /// new rows.
     func refreshSizeIfVisible() {
         guard let window, window.isVisible else { return }
-        // An expiry sweep can remove the selected row out from under the keyboard.
-        if let id = selection.selectedID, !store.items.contains(where: { $0.id == id }) {
-            selection.reset(to: store.items)
+        // An expiry sweep can remove the selected row out from under the keyboard, and a new
+        // capture can change what the current query matches.
+        if let id = selection.selectedID, !visibleItems.contains(where: { $0.id == id }) {
+            selection.reset(to: visibleItems)
         }
         applySizeAndPosition(to: window)
     }
@@ -115,23 +126,39 @@ final class PanelController: NSObject, NSWindowDelegate {
     func handle(_ command: PanelKeyCommand) -> Bool {
         switch command {
         case .moveUp:
-            selection.move(by: -1, in: store.items)
+            selection.move(by: -1, in: visibleItems)
             return true
 
         case .moveDown:
-            selection.move(by: 1, in: store.items)
+            selection.move(by: 1, in: visibleItems)
             return true
 
         case .activate:
-            guard let item = selection.selectedItem(in: store.items) else { return false }
+            guard let item = selection.selectedItem(in: visibleItems) else { return false }
             activate(item, plainTextOnly: false)
             return true
 
         case .activateAsPlainText:
-            guard let item = selection.selectedItem(in: store.items), item.hasPlainText else {
+            guard let item = selection.selectedItem(in: visibleItems), item.hasPlainText else {
                 return false
             }
             activate(item, plainTextOnly: true)
+            return true
+
+        case .typeCharacter(let character):
+            selection.query.append(character)
+            queryDidChange()
+            return true
+
+        case .deleteBackward:
+            if !selection.query.isEmpty {
+                selection.query.removeLast()
+                queryDidChange()
+                return true
+            }
+            // With no query active, Backspace keeps its original meaning: remove the entry.
+            guard let id = selection.selectedID else { return false }
+            delete(id)
             return true
 
         case .togglePin:
@@ -152,6 +179,12 @@ final class PanelController: NSObject, NSWindowDelegate {
             return true
 
         case .cancel:
+            // Escape backs out one layer at a time: an active search first, the panel second.
+            if !selection.query.isEmpty {
+                selection.query = ""
+                queryDidChange()
+                return true
+            }
             hide()
             return true
         }
@@ -205,8 +238,17 @@ final class PanelController: NSObject, NSWindowDelegate {
         return alert.runModal() == .alertFirstButtonReturn
     }
 
+    /// Selection jumps to the first match on every keystroke, so Return always pastes the top
+    /// hit, and the panel resizes to the filtered list.
+    private func queryDidChange() {
+        selection.reset(to: visibleItems)
+        if let window, window.isVisible {
+            applySizeAndPosition(to: window)
+        }
+    }
+
     private func delete(_ id: ClipItem.ID) {
-        let next = selection.selectionAfterRemoving(id, from: store.items)
+        let next = selection.selectionAfterRemoving(id, from: visibleItems)
         store.delete(id: id)
         selection.select(id: next)
         refreshSizeIfVisible()
@@ -214,7 +256,7 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     private func clearAll() {
         store.clearUnpinned()
-        selection.reset(to: store.items)
+        selection.reset(to: visibleItems)
         refreshSizeIfVisible()
     }
 
@@ -268,6 +310,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         PanelRootView(
             store: store,
             selection: selection,
+            visibleItems: visibleItems,
             pasteboardAccess: currentAccess(),
             actions: actions,
             listHeight: listHeight
@@ -297,10 +340,11 @@ final class PanelController: NSObject, NSWindowDelegate {
     /// fitting size returns something near its minimum, because scroll views are happy at any
     /// height, which previously sized the whole panel as though it held a single row.
     private func measuredListHeight() -> CGFloat {
-        guard !store.items.isEmpty else { return 0 }
+        let visible = visibleItems
+        guard !visible.isEmpty else { return 0 }
 
         let probe = NSHostingView(
-            rootView: HistoryRowsView(items: store.items, selectedID: nil)
+            rootView: HistoryRowsView(items: visible, selectedID: nil)
         )
         probe.layoutSubtreeIfNeeded()
         let natural = probe.fittingSize.height

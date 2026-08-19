@@ -395,6 +395,8 @@ final class AppCoordinator {
     var panelIsVisible: Bool { panel.isVisible }
     var panelDiagnostics: PanelController.Diagnostics { panel.diagnostics }
     var panelSelectedID: ClipItem.ID? { selection.selectedID }
+    var panelQuery: String { selection.query }
+    var panelVisibleCount: Int { panel.visibleItems.count }
 
     /// Drives the panel's keyboard model without a real key event, for the debug self test.
     @discardableResult

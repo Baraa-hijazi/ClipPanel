@@ -13,6 +13,14 @@ import Observation
 @Observable
 final class PanelSelection {
     private(set) var selectedID: ClipItem.ID?
+
+    /// The live search query. Owned here rather than by the controller so the SwiftUI header
+    /// updates as it changes. Deliberately NOT cleared by `reset(to:)`: that runs whenever the
+    /// list shifts under the selection (a capture arriving, an expiry sweep), and losing the
+    /// user's half-typed search to a background event would be infuriating. The controller
+    /// clears it explicitly on show and on Escape.
+    var query: String = ""
+
     /// Guarded entries the user has unmasked this panel session. Cleared every time the panel
     /// opens, so a revealed password does not stay readable across openings.
     private(set) var revealedIDs: Set<ClipItem.ID> = []

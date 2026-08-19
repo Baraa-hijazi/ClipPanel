@@ -58,10 +58,15 @@ check "self test compiled out" "$([ "$SELFTEST_SYMS" -eq 0 ] && echo pass || ech
 check "self test environment variable absent" "$([ "$SELFTEST_STRS" -eq 0 ] && echo pass || echo fail)" "$SELFTEST_STRS strings"
 
 # DESIGN 6.4: hardened runtime on, sandbox deliberately off.
-if codesign -dv "$APP" 2>&1 | grep -q "runtime"; then
+#
+# Captured into a variable first, never piped into grep -q: under pipefail, grep -q exits on the
+# first match and can SIGPIPE the producer, making the pipeline fail even though the text was
+# there. This check flaked exactly that way once; do not "simplify" it back into a pipe.
+SIGNATURE_INFO=$(codesign -dv "$APP" 2>&1 || true)
+if echo "$SIGNATURE_INFO" | grep -q "runtime"; then
   check "hardened runtime enabled" pass
 else
-  check "hardened runtime enabled" fail
+  check "hardened runtime enabled" fail "$(echo "$SIGNATURE_INFO" | grep flags || echo 'no flags line')"
 fi
 
 if codesign -d --entitlements - "$APP" 2>/dev/null | tr -d '\0' | grep -q "app-sandbox"; then

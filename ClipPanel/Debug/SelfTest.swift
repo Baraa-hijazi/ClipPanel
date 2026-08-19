@@ -281,6 +281,62 @@ enum SelfTest {
         _ = guardedEntry
         coordinator.store.removeEverything()
 
+        // MARK: Search
+
+        print("")
+        print("Search")
+        coordinator.store.removeEverything()
+        for (index, text) in ["alpha one", "beta two", "alpha three"].enumerated() {
+            let snapshot = PasteboardSnapshot(items: [[
+                ClipItem.Representation(type: PasteboardTypes.plainText, data: Data(text.utf8)),
+            ]])
+            if let entry = ItemFactory.make(from: snapshot, sourceBundleID: "com.apple.TextEdit") {
+                var entry = entry
+                entry.createdAt = Date().addingTimeInterval(Double(index))
+                coordinator.store.record(entry)
+            }
+        }
+        var searchGuardedEntry = ItemFactory.make(
+            from: PasteboardSnapshot(items: [[
+                ClipItem.Representation(type: PasteboardTypes.plainText, data: Data("alpha-secret-9".utf8)),
+            ]]),
+            sourceBundleID: "com.apple.Safari"
+        )!
+        searchGuardedEntry.isGuarded = true
+        coordinator.store.record(searchGuardedEntry)
+
+        coordinator.showPanel()
+        try? await Task.sleep(for: .milliseconds(200))
+        check("panel opens with no query and everything visible",
+              coordinator.panelQuery.isEmpty && coordinator.panelVisibleCount == 4,
+              detail: "\(coordinator.panelVisibleCount) visible")
+
+        for character in "alpha" {
+            coordinator.sendPanelKeyCommand(.typeCharacter(character))
+        }
+        check("typing filters the list",
+              coordinator.panelVisibleCount == 2,
+              detail: "query '\(coordinator.panelQuery)', \(coordinator.panelVisibleCount) visible")
+        check("the guarded entry stays hidden even though its content matches",
+              coordinator.panelVisibleCount == 2)
+        check("selection sits on the first match",
+              coordinator.panelSelectedID != nil)
+
+        coordinator.sendPanelKeyCommand(.deleteBackward)
+        check("backspace edits the query rather than deleting a row",
+              coordinator.panelQuery == "alph" && coordinator.store.items.count == 4,
+              detail: "query '\(coordinator.panelQuery)'")
+
+        coordinator.sendPanelKeyCommand(.cancel)
+        check("escape clears the query first and keeps the panel open",
+              coordinator.panelQuery.isEmpty && coordinator.panelIsVisible
+                  && coordinator.panelVisibleCount == 4)
+
+        coordinator.sendPanelKeyCommand(.cancel)
+        try? await Task.sleep(for: .milliseconds(150))
+        check("a second escape closes the panel", !coordinator.panelIsVisible)
+        coordinator.store.removeEverything()
+
         print("----------------------")
         if failures.isEmpty {
             print("all checks passed")

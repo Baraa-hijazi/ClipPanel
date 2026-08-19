@@ -11,6 +11,7 @@ Intel. No dependencies, and no network code of any kind.
 | Action | Key |
 |---|---|
 | Open the clipboard | `⌃⌘V` (configurable) |
+| Search | just start typing; `⌫` edits, `esc` clears |
 | Move through entries | `↑` `↓` |
 | Paste the selected entry | `Return` |
 | Paste as plain text | `⌥Return` |
