@@ -150,6 +150,16 @@ final class AppCoordinator {
         }
 
         refreshLockObserver()
+
+        // Heal the login item on every launch (see LoginItem.reassert for the field failure this
+        // answers). Deliberately gated on the system reporting ENABLED: that is exactly the broken
+        // state (record enabled, recorded binary hash stale after an update), and it means a user
+        // who disabled ClipPanel in System Settings directly is never fought. Also migrates the
+        // intent preference for toggles made before it existed.
+        if LoginItem.isEnabled {
+            AppPreferences.launchAtLoginDesired = true
+            LoginItem.reassert()
+        }
         startExpiryTimer()
         registerPanicHotKeyIfEnabled()
 
@@ -283,7 +293,10 @@ final class AppCoordinator {
 
     var launchAtLogin: Bool {
         get { LoginItem.isEnabled }
-        set { LoginItem.setEnabled(newValue) }
+        set {
+            AppPreferences.launchAtLoginDesired = newValue
+            LoginItem.setEnabled(newValue)
+        }
     }
 
     var launchAtLoginNeedsApproval: Bool { LoginItem.needsApproval }

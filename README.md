@@ -131,6 +131,9 @@ decide to trust it (the source is right here to check), the path is: attempt to 
 then System Settings, Privacy and Security, scroll to the ClipPanel notice, Open Anyway, and
 confirm. You only do this once. Notarized releases, which skip all of that, are planned.
 
+The "Open ClipPanel at login" setting heals itself: if an update ever breaks the login
+registration (a known consequence of unsigned builds), opening the app once repairs it.
+
 First launch shows a short onboarding that walks through the two permissions (clipboard access,
 and optionally Accessibility for automatic pasting).
 

@@ -758,3 +758,28 @@ Incidental fix: `verify-release.sh`'s hardened-runtime check was flaky under `pi
 `grep -q` exits on first match and can SIGPIPE `codesign`, failing the pipeline despite the flag
 being present. Output is now captured before grepping, and the comment in the script warns the next
 person not to simplify it back into a pipe.
+
+### Login item self-healing (2026-08-30, field failure)
+
+Reported: "Open at login" was toggled on, and after an update plus restart the app did not launch.
+Diagnosis from the BTM database (`sfltool dumpbtm`): the record existed, enabled, at the right path,
+with Generation 3 and NO team identifier. That last part is the cause. An ad-hoc signature has no
+stable identity, so the identity BTM records is effectively the hash of one specific binary; every
+reinstall since the toggle had replaced that binary, and at boot BTM validates, fails the match, and
+silently launches nothing while the toggle still reads as on. The unified log shows none of this to
+an unprivileged query because the relevant entries are redacted.
+
+Fix shipped: on every launch, when the system reports the login item ENABLED, the app re-registers
+itself, which rewrites the BTM record with the running binary's identity. Gating on enabled is
+deliberate: it is exactly the broken state, and it guarantees a user who disabled ClipPanel directly
+in System Settings is never fought. The toggle also records intent in preferences now
+(`launchAtLoginDesired`), migrated automatically for toggles that predate it.
+
+Consequence for users on ad-hoc builds: after any update, the first manual launch heals the login
+item automatically; launching the app after updating is therefore the whole maintenance procedure.
+A Developer ID signature removes the problem at the root, because its identity is stable across
+updates. That remains the standing recommendation for the credential-gated release step.
+
+Tooling note for whoever debugs BTM next: unprivileged `sfltool dumpbtm` worked exactly once per
+session here, then hung or returned empty. Guard it with a timeout, take its first answer, and do
+not build a verification loop on it. The definitive test of a login item is a restart.
