@@ -85,6 +85,17 @@ private struct GeneralSettingsTab: View {
             }
 
             Section {
+                Picker("Menu bar menu shows", selection: recentEntriesInMenu) {
+                    Text("No recent copies").tag(0)
+                    Text("5 recent copies").tag(5)
+                    Text("8 recent copies").tag(8)
+                    Text("12 recent copies").tag(12)
+                }
+                Text("Click the menu bar icon to pick from your latest copies. Menus cannot be hidden from screenshots the way the panel is, so each entry shows one short line.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Toggle("Show which app a copy came from", isOn: showCaptions)
                 Toggle("Open ClipPanel at login", isOn: launchAtLogin)
                 if coordinator.launchAtLoginNeedsApproval {
@@ -138,6 +149,13 @@ private struct GeneralSettingsTab: View {
                 settings.maxTotalBytes = $0 * 1024 * 1024
                 coordinator.captureSettings = settings
             }
+        )
+    }
+
+    private var recentEntriesInMenu: Binding<Int> {
+        Binding(
+            get: { coordinator.recentEntriesInMenu },
+            set: { coordinator.recentEntriesInMenu = $0 }
         )
     }
 

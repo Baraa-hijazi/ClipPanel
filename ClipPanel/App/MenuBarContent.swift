@@ -2,7 +2,8 @@
 //  MenuBarContent.swift
 //  ClipPanel
 //
-//  Only items that actually work are listed. Settings arrives in M6.
+//  Only items that actually work are listed. Recent entries sit at the top (PLAN.md Item 7), so
+//  the icon is a second way into history; SwiftUI rebuilds this content on every open.
 //
 
 import Carbon.HIToolbox
@@ -12,7 +13,14 @@ struct MenuBarContent: View {
     let coordinator: AppCoordinator
 
     var body: some View {
-        Button("Open Clipboard") {
+        if coordinator.recentEntriesInMenu > 0 {
+            recentEntries
+            Divider()
+        }
+
+        // Titled "Show All" when the recent list is above it; with the list off it is the only way
+        // in, so it keeps its original name.
+        Button(coordinator.recentEntriesInMenu > 0 ? "Show All..." : "Open Clipboard") {
             coordinator.showPanel()
         }
         .keyboardShortcut(
@@ -61,6 +69,33 @@ struct MenuBarContent: View {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q")
+    }
+
+    @ViewBuilder
+    private var recentEntries: some View {
+        let entries = coordinator.recentEntriesForMenu
+        if entries.isEmpty {
+            Text("No copies yet")
+        } else {
+            ForEach(Array(entries.enumerated()), id: \.element.id) { index, item in
+                let label = coordinator.menuLabel(for: item)
+                let button = Button {
+                    coordinator.pasteFromMenu(item)
+                } label: {
+                    Label(label.title, systemImage: label.symbol)
+                }
+                // Command-1 through command-9 for the first nine. Menu-only: they work while the
+                // menu is open and register nothing global.
+                if index < 9 {
+                    button.keyboardShortcut(
+                        KeyEquivalent(Character(String(index + 1))),
+                        modifiers: .command
+                    )
+                } else {
+                    button
+                }
+            }
+        }
     }
 }
 

@@ -827,3 +827,29 @@ Verified the way the plan's acceptance asks: the user's domain exported before a
 189-case run is byte-identical, and the test keys appear only in the test suite domain.
 `nonisolated(unsafe)` on the static is justified in place: the SDK does not mark UserDefaults
 Sendable, Apple documents it thread-safe, and the reference is a let assigned once.
+
+### Recent entries in the menu bar menu (2026-10-06, PLAN.md Item 7)
+
+Clicking the menu bar icon now lists the latest entries at the top (default 8; Settings, General
+offers 0, 5, 8, 12; 0 hides the section), with command-1 through command-9 while the menu is open.
+Picking one pastes through the same path as the panel. That path was extracted from the panel's
+init-time closure into `pasteThenTidy`, a file-level function both callers use, so the panel and
+the menu cannot drift on paste behaviour or the guarded clipboard cleanup. The target app is
+whatever is frontmost when the item is chosen, which is the user's app because a status item menu
+does not activate ClipPanel.
+
+Decisions: the menu stays a menu (no left-click-panel, right-click-menu split, which would have
+meant leaving MenuBarExtra); "Open Clipboard" becomes "Show All..." when the list is above it and
+keeps its old name when the list is off; rows use an SF Symbol rather than the image thumbnail,
+because thumbnail sizing in SwiftUI-bridged NSMenu items is not reliably controllable; a pinned
+entry takes the pin in the icon slot and its title still says what kind it is.
+
+Security limitation, accepted and stated in Settings: a system menu cannot be excluded from screen
+capture (that is a window property, and NSMenu is not ours to configure), so menu rows can appear
+in a screenshot taken while the menu is open. Hence one truncated line per entry (48 characters,
+first non-empty line, continuation marked), masked rows for guarded entries while Secret Guard is
+on, and an off switch. The formatter is pure (`MenuEntryFormatter`) and unit-tested, including that
+a guarded entry's content never reaches its label.
+
+Not verifiable headlessly: how the bridged NSMenu actually renders the labels, symbols, and
+shortcuts. Needs a look by a human, listed in the review checklist.

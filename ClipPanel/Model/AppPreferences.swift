@@ -23,6 +23,7 @@ nonisolated enum AppPreferences {
         static let panicWipeHotKeyEnabled = "panicWipeHotKeyEnabled"
         static let requireAuthAfterLock = "requireAuthAfterLock"
         static let showSourceAppCaptions = "showSourceAppCaptions"
+        static let recentEntriesInMenu = "recentEntriesInMenu"
         static let secretGuardEnabled = "secretGuardEnabled"
         static let guardedLifetime = "guardedLifetimeSeconds"
         static let strictSecretMode = "strictSecretMode"
@@ -68,6 +69,22 @@ nonisolated enum AppPreferences {
     static var launchAtLoginDesired: Bool {
         get { defaults.bool(forKey: Key.launchAtLoginDesired) }
         set { defaults.set(newValue, forKey: Key.launchAtLoginDesired) }
+    }
+
+    /// How many recent entries the menu bar menu lists (PLAN.md Item 7). 0 hides the section.
+    static let recentEntriesInMenuRange = 0...12
+    static let recentEntriesInMenuDefault = 8
+
+    static var recentEntriesInMenu: Int {
+        get {
+            guard let stored = defaults.object(forKey: Key.recentEntriesInMenu) as? Int else {
+                return recentEntriesInMenuDefault
+            }
+            return stored.clamped(to: recentEntriesInMenuRange)
+        }
+        set {
+            defaults.set(newValue.clamped(to: recentEntriesInMenuRange), forKey: Key.recentEntriesInMenu)
+        }
     }
 
     static var clearOnScreenLock: Bool {

@@ -108,17 +108,15 @@ final class AppCoordinator {
             currentAccess: { pasteboard.access },
             paste: { item, plainTextOnly, targetApp in
                 // Captures locals rather than self: this closure is built before init finishes.
-                let outcome = await paster.paste(item, plainTextOnly: plainTextOnly, into: targetApp)
-                if case .failed = outcome {
-                    // Nothing was written, so there is nothing to clean up.
-                } else if store.settings.isGuarded(item), store.settings.clearClipboardAfterPastingGuarded {
-                    let countAtPaste = pasteboard.changeCount
-                    Task {
-                        try? await Task.sleep(for: AppCoordinator.guardedClearDelay)
-                        clearClipboardIfUnchanged(since: countAtPaste, pasteboard: pasteboard, monitor: monitor)
-                    }
-                }
-                return outcome
+                await pasteThenTidy(
+                    item,
+                    plainTextOnly: plainTextOnly,
+                    into: targetApp,
+                    settings: store.settings,
+                    paster: paster,
+                    pasteboard: pasteboard,
+                    monitor: monitor
+                )
             }
         )
     }
@@ -228,6 +226,47 @@ final class AppCoordinator {
             // A smaller history has to take effect immediately rather than at the next capture.
             store.enforceLimit()
             panel.refreshSizeIfVisible()
+        }
+    }
+
+    // MARK: - Menu bar menu (PLAN.md Item 7)
+
+    /// How many recent entries the menu lists; 0 hides the section. Stored here so the menu, which
+    /// SwiftUI rebuilds on every open, observes it.
+    var recentEntriesInMenu: Int = AppPreferences.recentEntriesInMenu {
+        didSet { AppPreferences.recentEntriesInMenu = recentEntriesInMenu }
+    }
+
+    var recentEntriesForMenu: [ClipItem] {
+        MenuEntryFormatter.recentEntries(from: store.items, limit: recentEntriesInMenu)
+    }
+
+    func menuLabel(for item: ClipItem) -> MenuEntryLabel {
+        MenuEntryFormatter.label(for: item, guarded: store.settings.isGuarded(item))
+    }
+
+    /// Pastes an entry picked from the menu bar menu, through the same path as the panel.
+    ///
+    /// A status item menu does not activate this app, so whatever is frontmost when the item is
+    /// chosen is still the app the user was working in, which is the paste target.
+    func pasteFromMenu(_ item: ClipItem) {
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let target = NSWorkspace.shared.frontmostApplication.flatMap {
+            $0.processIdentifier == ownPID ? nil : $0
+        }
+        Task { [store, paster, pasteboard, monitor] in
+            let outcome = await pasteThenTidy(
+                item,
+                plainTextOnly: false,
+                into: target,
+                settings: store.settings,
+                paster: paster,
+                pasteboard: pasteboard,
+                monitor: monitor
+            )
+            if case .failed = outcome {
+                NSSound.beep()
+            }
         }
     }
 
@@ -456,6 +495,30 @@ final class AppCoordinator {
 /// exactly as password managers do with their own copies (REVIEW.md part 2). This is the decision
 /// half: it fires only if the clipboard still holds what we wrote. A newer copy, from anywhere,
 /// cancels the cleanup by definition, which the change counter tells us for free.
+/// The one paste path, shared by the panel and the menu bar menu so they cannot drift: paste, then,
+/// for a guarded entry with the cleanup setting on, schedule the clipboard clear.
+private func pasteThenTidy(
+    _ item: ClipItem,
+    plainTextOnly: Bool,
+    into targetApp: NSRunningApplication?,
+    settings: CaptureSettings,
+    paster: PasteInjector,
+    pasteboard: any PasteboardSource & PasteboardWriting,
+    monitor: ClipboardMonitor
+) async -> PasteOutcome {
+    let outcome = await paster.paste(item, plainTextOnly: plainTextOnly, into: targetApp)
+    if case .failed = outcome {
+        // Nothing was written, so there is nothing to clean up.
+    } else if settings.isGuarded(item), settings.clearClipboardAfterPastingGuarded {
+        let countAtPaste = pasteboard.changeCount
+        Task {
+            try? await Task.sleep(for: AppCoordinator.guardedClearDelay)
+            clearClipboardIfUnchanged(since: countAtPaste, pasteboard: pasteboard, monitor: monitor)
+        }
+    }
+    return outcome
+}
+
 private func clearClipboardIfUnchanged(
     since changeCount: Int,
     pasteboard: any PasteboardSource & PasteboardWriting,

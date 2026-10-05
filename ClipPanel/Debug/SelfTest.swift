@@ -357,6 +357,25 @@ enum SelfTest {
         try? await Task.sleep(for: .milliseconds(150))
 
         coordinator.store.settings.secretGuardEnabled = guardWasEnabled
+
+        // MARK: Menu bar menu (PLAN.md Item 7)
+
+        print("")
+        print("Menu bar menu")
+        // Read-only on purpose: setting recentEntriesInMenu would persist to the user's preferences.
+        let menuLimit = coordinator.recentEntriesInMenu
+        let menuEntries = coordinator.recentEntriesForMenu
+        check("menu lists the configured number of recent entries",
+              menuEntries.count == min(menuLimit, coordinator.store.items.count),
+              detail: "limit \(menuLimit), \(coordinator.store.items.count) in history, \(menuEntries.count) listed")
+        check("menu lists them in history order",
+              menuEntries.map(\.id) == Array(coordinator.store.items.prefix(menuEntries.count)).map(\.id))
+        check("every menu label is a single bounded line",
+              menuEntries.allSatisfy {
+                  let title = coordinator.menuLabel(for: $0).title
+                  return !title.contains("\n") && title.count <= MenuEntryFormatter.maxCharacters
+              })
+
         coordinator.store.removeEverything()
 
         print("----------------------")
