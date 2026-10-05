@@ -1,0 +1,271 @@
+# ClipPanel: Round 3 Execution Plan
+
+Written 2026-10-05 against commit `2b392f0`, for implementation in a fresh session. Fable reviews the
+result afterwards against the acceptance criteria below, so every item states what "done" means in
+checkable terms. Work the items in order; each leaves the app shippable.
+
+Conventions carried over from every earlier round: no em dashes anywhere, no AI attribution in
+commits, one commit per item with the reasoning in the message, `make test` and `make selftest` and
+`Scripts/verify-release.sh` green before each commit, and DESIGN.md section 13 gets a log entry per
+item recording what changed and why. Tests never touch the real clipboard or keychain.
+
+---
+
+## Item 1: Secret Guard becomes opt-in (user request, do first)
+
+### What the user asked for
+
+The password protections are getting in the way in daily use: entries that look like passwords are
+masked in the panel, expire after five minutes, and the clipboard is cleared a minute after pasting
+one. The user wants those behaviours gone from their experience.
+
+### Decision: a master switch, default off, rather than deleting the code
+
+Reasoning, so the reviewer can check it rather than relitigate it:
+
+- Deleting Secret Guard removes the product's main differentiator (REVIEW.md parts 2 and 4) and a
+  large tested subsystem (`SecretDetector`, `GuardedLifecycleTests`, the search exclusion, the
+  masked card, reveal, Touch ID gate, post-paste clearing) for a benefit a single Bool delivers.
+- A default-off switch gives the user exactly the experience they asked for on this machine while
+  leaving the protection one click away for anyone who wants it. Default off also means a fresh
+  install behaves like a plain clipboard manager, which is the least surprising default.
+- If the user, after living with it, still wants the code gone, the deletion scope is listed at the
+  end of this item. It is a strictly larger change and should be a separate decision.
+
+### Behaviour specification
+
+One new setting, `secretGuardEnabled: Bool`, default `false`.
+
+When OFF (the new default):
+
+| Behaviour today | Behaviour when off |
+|---|---|
+| Text captures are assessed by `SecretDetector`; matches set `isGuarded` | Detector is not run at capture; `isGuarded` is never set on new entries |
+| Guarded entries are masked (`••••••••`, shield) until revealed with ⌘R, optionally behind Touch ID | Nothing is masked; ⌘R and the reveal action are no-ops and the hint is hidden |
+| Guarded entries expire after `guardedLifetime` unless pinned | No guarded expiry (the whole-history lifetime setting is unaffected) |
+| Pasting a guarded entry schedules a clipboard clear after 60 s | No clipboard clearing |
+| Pinning a guarded entry asks for confirmation | No confirmation |
+| Guarded entries are excluded from search results | Nothing is excluded from search |
+| Strict mode drops detected secrets at capture | Strict mode is inert |
+| Card shows a guarded badge and "Probably sensitive" caption | No badge |
+
+Entries that were guarded BEFORE the switch was turned off (in RAM, or pinned on disk with
+`isGuarded: true`) are treated as ordinary entries while the switch is off, and resume guarded
+behaviour if it is turned back on. Rule: every consumer reads an effective value,
+`item.isGuarded && settings.secretGuardEnabled`, never the raw flag. The stored flag is kept so
+turning the switch back on restores protection for existing entries.
+
+When ON: identical to today, no behavioural change.
+
+### Implementation steps
+
+1. `Model/CaptureSettings.swift`: add `var secretGuardEnabled: Bool = false` next to the other guard
+   settings, with a doc comment pointing at this plan item.
+2. `Model/AppPreferences.swift`: key `secretGuardEnabled`, read in `loadCaptureSettings()` with the
+   `object(forKey:) as? Bool ?? false` pattern, written in `save(_:)`.
+3. `Core/ClipboardMonitor.swift` (around line 155): wrap the `SecretDetector.assess` block in
+   `if settings.secretGuardEnabled`. Strict mode lives inside that block already, so it becomes inert
+   for free.
+4. Effective-guard helper: add to `HistoryStore` a method `isEffectivelyGuarded(_ item: ClipItem)
+   -> Bool { item.isGuarded && settings.secretGuardEnabled }`, and route every consumer through it:
+   - `Model/HistoryStore.swift` `sweepExpired(now:)` line 109: use the helper.
+   - `UI/PanelController.swift`: the `toggleReveal` guard (line 175) and `togglePin` confirmation
+     (`confirmPinningGuardedEntry`) use the helper.
+   - `App/AppCoordinator.swift` line 114: the post-paste clear condition uses the helper.
+   - `UI/ItemCardView.swift`: receives `isGuarded` as an effective value (compute in
+     `HistoryRowsView` from the store, or pass the flag down from `PanelRootView`), so `isMasked`
+     and the badge follow the switch.
+   - `Model/SearchFilter.swift`: `filter(_:query:appName:)` gains a parameter
+     `excludingGuarded: Bool` (or receives the effective flag per item); `PanelController.visibleItems`
+     passes `store.settings.secretGuardEnabled`. The oracle-prevention comment stays, amended to say
+     the exclusion applies only while the guard is on, because without masking there is no oracle.
+5. `UI/SettingsView.swift`, Privacy tab, section "Entries that look like passwords": add
+   `Toggle("Guard entries that look like passwords", isOn: secretGuard)` as the FIRST row, with a
+   one-line caption explaining what it does. The existing picker and two toggles stay in the section
+   but are `.disabled(!secretGuardEnabled)` so the hierarchy is visible rather than hidden.
+6. `UI/OnboardingView.swift` line 63 and the README (lines 28, 83, 103 region): the bullet and
+   prose change from "are masked and expire" to "can be masked and expired, off by default, in
+   Settings, Privacy". Truthfulness over marketing: a protection that is off must not be described
+   as active.
+7. `REVIEW.md` part 2 and part 4 get a one-paragraph note that Secret Guard is now opt-in, with the
+   date and the reason, so the security narrative in the repo stays honest.
+
+### Tests
+
+- `GuardedLifecycleTests`: fixtures turn the switch ON explicitly, so the 22 existing assertions keep
+  testing the protection. Any test that constructs `CaptureSettings()` and expects guarding must set
+  `secretGuardEnabled = true`.
+- `SearchFilterTests`: the two guarded-exclusion tests set the switch on; add one test asserting that
+  with the switch OFF a guarded entry IS matched by content.
+- New `SecretGuardSwitchTests`:
+  - monitor with switch off captures a password-shaped string with `isGuarded == false` and the
+    detector path not taken (assert via the capture's flag; the detector is pure so no spy is needed);
+  - monitor with switch off and `strictSecretMode = true` still records the entry (strict is inert);
+  - `sweepExpired` with switch off does not expire a pre-existing guarded entry even past its
+    lifetime, and DOES expire it once the switch is on;
+  - the post-paste clear is not scheduled with the switch off (drive through the coordinator's
+    existing `clearClipboardIfUnchangedForTesting` seam or assert the pasteboard was not rewritten);
+  - preferences round trip, default false when unset.
+- `Debug/SelfTest.swift`: the Secret Guard section (around line 267) and the search section (line
+  305) set the switch on before exercising guarded behaviour, and one new check asserts that with the
+  switch off a guarded-flagged entry is visible in a search by content.
+
+### Acceptance
+
+- Fresh install: no masking, no expiry of password-shaped entries, no clipboard clearing, search finds
+  everything. Settings, Privacy shows the master toggle off with its three sub-settings disabled.
+- Turning the toggle on restores today's behaviour exactly, including for entries captured earlier.
+- All gates green; test count rises.
+
+### If deletion is chosen later instead
+
+Remove `SecretDetector.swift`, `GuardedLifecycleTests.swift`, `Authenticator.swift` and the Touch ID
+gate, the guarded fields in `CaptureSettings` and `AppPreferences` (keep decoding `isGuarded` for old
+pin files so they still open), the masked card branch, reveal command and ⌘R, the search exclusion,
+the post-paste clear, the pin confirmation, the privacy section, the onboarding bullet, and the
+README and REVIEW claims. Roughly 1,500 lines. Not recommended; recorded so the scope is known.
+
+---
+
+## Item 2: Hover must not change layout (REVIEW.md part 4 finding)
+
+### Steps
+
+1. `UI/ItemCardView.swift`: render `rowActions` unconditionally in the `HStack`; apply
+   `.opacity(showsActions ? 1 : 0)` and `.allowsHitTesting(showsActions)`. Remove the `if`.
+2. Same treatment for `pinIndicator`: always render the pin glyph's frame, opacity 0 when not pinned,
+   so pinning and unpinning do not shift the text column either. Keep the `.frame(width:)` fixed.
+3. Preview `Text` (line 102 region): add `.fixedSize(horizontal: false, vertical: true)` so the wrap
+   is decided once from the constant column width.
+4. The hover state change must not animate layout: set `isHovering` inside
+   `withTransaction(Transaction(animation: nil))` or wrap the opacity change in an explicit
+   `.animation(.easeOut(duration: 0.1), value: showsActions)` and nothing else.
+5. `UI/PanelController.measuredListHeight()`: no change needed once rows are layout-stable, but add
+   a comment that the probe's correctness depends on rows not changing size with selection or hover,
+   and point at the test below.
+
+### Tests
+
+New `RowLayoutStabilityTests` (main actor, uses `NSHostingView.fittingSize`): for a text entry, an
+image entry, and a files entry, the fitting height of `ItemCardView` is identical for
+`isSelected` false and true, and identical for `isPinned` false and true. A 4-line text entry is
+included so wrap sensitivity is covered.
+
+### Acceptance
+
+Hovering any row changes nothing but the action buttons' visibility; the panel never resizes on
+hover. The invariance test passes for all three preview kinds.
+
+---
+
+## Item 3: Liquid Glass adoption (spike first)
+
+### Spike (one hour, decides everything)
+
+In a scratch branch: apply `.glassEffect(.regular, in: RoundedRectangle(cornerRadius:
+PanelMetrics.cornerRadius, style: .continuous))` to `PanelRootView`'s root in place of
+`.background(.regularMaterial)` and the stroke overlay. Launch, open the panel over a busy desktop
+and over a window. Question: does the glass refract what is BEHIND the panel window? The panel is a
+borderless `NSPanel` with a clear background, and glass must sample the backdrop through the window
+for this to look right.
+
+- If yes: proceed with adoption below.
+- If no (glass only refracts within the view hierarchy): keep `.regularMaterial` for the container
+  and apply glass to controls only (steps 3 and 4 below). Record the finding in DESIGN.md.
+
+### Adoption steps (in order, each its own commit)
+
+1. Container: wrap `PanelRootView` content in `GlassEffectContainer`, apply the container glass, drop
+   the hand-drawn stroke border. `sharingType = .none` is untouched (verify with the existing self test
+   check). Check Reduce Transparency in System Settings produces a sensible fallback (it does with
+   system glass; confirm, do not assume).
+2. Selection pill: replace the per-row `.selection` fill in `ItemCardView.background` with a single
+   glass highlight that morphs between rows via `.glassEffectID(item.id, in: namespace)` inside the
+   container, so arrowing slides one highlight instead of lighting rows up and down. Keyboard
+   navigation and `scrollTo` must still work; test by eye and by the existing self test selection
+   checks.
+3. Controls: `.buttonStyle(.glass)` for Clear All and the row actions; `.glassProminent` for the
+   primary onboarding button. Remove the `.borderless` style where replaced.
+4. Entrance: choose either the panel's `.utilityWindow` animation or `glassEffectTransition`, not
+   both. Prefer the glass transition if the container glass shipped.
+5. Icon: build a layered Icon Composer asset (`.icon`) from the existing squircle and clipboard glyph
+   and add it to the asset catalog so Tahoe renders it as a native glass icon rather than wrapping the
+   PNGs. Keep the PNG set as the fallback for the Finder and older contexts.
+
+### Acceptance
+
+Panel visibly matches Tahoe system palettes; self test still reports screen-capture exclusion and
+all selection checks pass; Reduce Transparency fallback confirmed; DESIGN.md records the spike
+result. If the spike failed, acceptance is steps 3 and 4 only plus the recorded finding.
+
+---
+
+## Item 4: README repositioning for Tahoe's built-in clipboard history
+
+macOS 26 Spotlight includes clipboard history (roughly eight hours, plain text and images, no pins,
+no persistence across restart, no secret handling). Add a short section "Versus Spotlight's clipboard
+history" near the top of the README that states this plainly and lists what ClipPanel adds: pins that
+survive a restart (encrypted), optional secret guarding (now off by default, see Item 1), images and
+files with fidelity re-paste, search, zero networking, a panel at the pointer, configurable shortcut.
+No marketing adjectives; a comparison table is fine. Update the release notes template in
+`Scripts/package-release.sh`'s header comment only if it mentions competitors (it does not today).
+
+### Acceptance
+
+README states the Spotlight baseline accurately and the differentiators without overclaiming.
+Secret Guard is described as optional.
+
+---
+
+## Item 5: Housekeeping
+
+1. The personal-account push helper (`askpass-personal.sh`) lives in the session scratchpad and is
+   lost on every reboot. Move it to `~/.local/bin/clippanel-push.sh` (outside the repo; it encodes
+   a username, not a secret, but it is machine-specific) and document the path and the reason in
+   DESIGN.md section 13 next to the existing gh two-account note.
+2. `AppNameResolver` cache cap (REVIEW.md part 1 small observation), 64 entries, oldest evicted.
+3. The `Picker("Expire them after")` in Settings gains a "Never" option (`TimeInterval(0)`) so users
+   who keep Secret Guard on can still opt out of expiry alone; `sweepExpired` already treats 0 as
+   disabled.
+
+---
+
+## Item 6: Foundation Models detector spike (optional, do not ship by default)
+
+Only if time remains. Behind a compile-time flag, ask the on-device model whether a text is likely a
+credential, and if it says yes AND the heuristics said no, set guarded. Additive only: the model may
+never un-guard. Measure latency on this Mac; anything over 50 ms per capture disqualifies it from the
+capture path and moves it to a background pass. Record findings in DESIGN.md. No tests depend on the
+model's output.
+
+---
+
+## Standing item: Developer ID signing (user)
+
+`Scripts/package-release.sh` with `DEVELOPER_ID` and `NOTARY_PROFILE` set. Resolves the login-item
+breakage after updates, the keychain re-prompts, and the Gatekeeper friction on downloads, all of
+which trace to the ad-hoc signature's unstable identity.
+
+---
+
+## Commit plan and order
+
+1. Item 1 (Secret Guard opt-in) with tests and doc updates.
+2. Item 2 (hover layout stability) with the invariance test.
+3. Item 5.2 and 5.3 (small, ride along).
+4. Item 3 spike result recorded; then adoption commits 1 through 5 as they land.
+5. Item 4 README.
+6. Item 5.1 helper relocation (not a code commit; DESIGN.md note).
+7. Item 6 if attempted.
+
+Tag `v0.2.0` after Items 1 through 4; rebuild the release zip and attach it with notes that lead
+with "Secret Guard is now opt-in" so existing users are not surprised.
+
+## Review checklist for Fable afterwards
+
+- Every acceptance line above, checked against the running app, not the diff.
+- Grep for raw `item.isGuarded` reads outside the effective-guard helper; there should be none in
+  consumers.
+- README, onboarding, and REVIEW describe Secret Guard as optional and off by default.
+- `make test`, `make selftest`, `Scripts/verify-release.sh` green on the tagged commit.
+- No em dashes, no attribution lines, in any file or commit.
