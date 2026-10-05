@@ -375,6 +375,38 @@ wrong, that is a 0.2.1, and the fallback is a one-line switch of `glass.style` o
 material. The same look is needed at the menu bar menu (labels, symbols, the ⌘1 to ⌘9 hints) and
 at the hover fix with the pointer sweeping long entries.
 
+### Finding 5, from the user's screenshot: the menu is too wide
+
+A menu is exactly as wide as its widest row, and two of the rows are sentences: "Copy-only mode:
+picking an entry copies it, then press command-V" and "Pinned entries will not survive a restart
+this session." They predate this round, but the new entry list makes the menu something people look
+at. Once entries appear, the 48-character labels will hold it wide as well (48 characters of menu
+text plus icon and shortcut is roughly 400 pt; a comfortable menu is nearer 280).
+
+Fix for the next round, two parts:
+
+1. **Status rows become short, actionable items** instead of explanatory sentences. The explanation
+   belongs in Settings, which is where each one should lead:
+   - copy-only mode: `Button("Turn On Automatic Paste...")` opening Settings, Permissions;
+   - pins not persisting: `Button("Pinned Entries Not Being Saved...")` opening Settings,
+     Permissions;
+   - hot key taken: `Button("Shortcut \(shortcut) Unavailable...")` opening Settings, General;
+   - clipboard access denied: `Button("Clipboard Access Is Off...")` opening Settings, Permissions.
+   `showSettings` needs a tab parameter for this. Every row stays under about 34 characters.
+2. **`MenuEntryFormatter.maxCharacters` drops from 48 to 36.** The formatter tests that pin the cap
+   need their numbers updated, not their logic.
+
+Acceptance: with eight long text entries and copy-only mode on, the menu is no wider than the
+Settings status rows need, and every informational row leads somewhere.
+
+### Also visible in that screenshot: pins are not being saved this session
+
+"Pinned entries will not survive a restart this session" means the installed app could not read
+its keychain key at launch, almost certainly because the keychain prompt from the last relaunch was
+denied or dismissed. Nothing is lost, and nothing is wrong with the code: quit ClipPanel, open it
+again, and choose Always Allow when asked. The row disappears once the key is readable. Developer ID
+signing is what stops this prompt recurring after every update.
+
 ### Verification left by design
 
 The paste-from-menu target assumes a status item menu does not activate ClipPanel, which is how
