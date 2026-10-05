@@ -307,3 +307,84 @@ guard was on is treated as ordinary while it is off and regains its protection w
 back on. The concealed-marker rule (password managers' own flag) is unaffected and still cannot be
 switched off. The security narrative above remains accurate for users who turn the guard on, and
 the README's non-guarantees now say plainly what is held in the clear when it is off.
+
+---
+
+## Part 5: Review of the round 3 execution (2026-10-06, v0.2.0)
+
+Reviewed against PLAN.md's acceptance criteria and its review checklist, with every gate re-run
+independently rather than read from the execution log: 179 distinct test functions (206 cases
+with parameter expansion) passing, 56 self test checks passing, logging audit and release
+verification green on the tagged build, deployment target still 26.0. Checklist items: no raw
+`isGuarded` read outside the rule (the one grep hit is the rule's own doc comment), no em dashes
+in any tracked file, no attribution in any commit, guard described as optional in README,
+onboarding, and this document.
+
+**Verdict: approve.** The round did what the plan said, deviated only where it said why, and found
+two real problems the plan had not anticipated (tests writing into the user's real preferences;
+Xcode 27 breaking a test file). Three small corrections and one verification remain, below.
+
+### What held up well
+
+- Item 1 is exactly the design: one switch, one pure rule, every consumer routed through it, the
+  stored flag preserved so re-enabling restores protection. The test proving the rule's full truth
+  table and the one proving expiry follows the switch in both directions are the right tests.
+- Item 2 was done test-first and the test failed on the old code with a measured 17 pt jump before
+  passing on the new. That is how a visual bug should be fixed when the reviewer cannot see it.
+- Item 5.4's acceptance (user preferences byte-identical after a full run) was actually executed,
+  not asserted.
+- The glass container decision (AppKit's `NSGlassEffectView` for an AppKit-owned panel, rather
+  than SwiftUI glass inside it) is the right call, and the controller correctly stopped casting
+  `contentView` to the hosting view, which would otherwise have silently frozen the panel.
+  Verified by probe for this review: the glass view sizes a zero-framed content view to its
+  bounds, so the panel content is laid out, not blank.
+- The on-device model spike was run honestly and reported negative instead of being wedged in.
+
+### Finding 1, small bug now reachable: "expires soon" is shown for entries that never expire
+
+`ItemCardView.captionText` appends "expires soon" to every effectively guarded entry. Two cases
+make that false. Pinned guarded entries never expire (`sweepExpired` skips pinned first), which
+was already untrue before this round. And the new "Never" lifetime, added in this round, means no
+guarded entry expires, yet the caption still promises it. Fix for the next round: the card receives
+an `expires: Bool` alongside `isGuarded`, computed where the effective flag is computed as
+`isGuarded && !item.isPinned && settings.guardedLifetime > 0`, and the caption keys off that. One
+line in `HistoryRowsView`, one in the card, one test.
+
+### Finding 2, nit: the menu count picker has no slot for off-list values
+
+`recentEntriesInMenu` is clamped to 0...12 on load, but the picker offers only 0, 5, 8, 12. A
+value such as 7 (hand-edited defaults, or a future default change) loads fine and the menu honours
+it, while the picker renders empty. Either clamp to the offered set on load or add the remaining
+values to the picker. Cosmetic; the behaviour is correct.
+
+### Finding 3, documentation nit
+
+The README's key table lists "Reveal or mask a guarded entry, ⌘R" without qualification. It only
+applies while the guard is on. A parenthetical would do.
+
+### Finding 4, the one that matters most: v0.2.0 shipped a look nobody has seen
+
+The release notes say "the panel now sits in native macOS glass." Every mechanical check passes
+and the probe confirms the content is laid out, but how glass reads over a real desktop, in light
+and dark, with Reduce Transparency on, with the selection highlight sliding over it, has not been
+seen by a human. Shipping it was defensible (the previous look was correct and this is a
+container swap with the fallbacks owned by the system), and the plan's own "needs a human" list
+said so, but a release claim is now ahead of its verification. Action for the user, today: open
+the panel over something busy and over something dark. If the text contrast or the edge looks
+wrong, that is a 0.2.1, and the fallback is a one-line switch of `glass.style` or a return to the
+material. The same look is needed at the menu bar menu (labels, symbols, the ⌘1 to ⌘9 hints) and
+at the hover fix with the pointer sweeping long entries.
+
+### Verification left by design
+
+The paste-from-menu target assumes a status item menu does not activate ClipPanel, which is how
+`NSStatusItem` menus behave and how `MenuBarExtra` is built, but it has not been observed live.
+Pick a menu entry with a document focused and confirm it lands there (in copy-only mode, that it
+is on the clipboard). Developer ID signing stays the standing item; it resolves the keychain
+prompt that every reinstall in this round produced.
+
+### For the next Opus round
+
+1. Finding 1 (caption truth), with its test.
+2. Finding 2 and 3, if the files are open anyway.
+3. Nothing else until the human verification in Finding 4 has happened; a 0.2.1 depends on it.
