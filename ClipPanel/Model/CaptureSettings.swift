@@ -33,6 +33,13 @@ nonisolated struct CaptureSettings: Sendable, Equatable {
 
     // MARK: Secret Guard (REVIEW.md part 2)
 
+    /// Master switch for everything below, off by default (PLAN.md Item 1). In daily use the
+    /// masking, early expiry, and post-paste clipboard clearing got in the way, so a fresh install
+    /// behaves like a plain clipboard manager and the protection is one toggle away for anyone
+    /// who wants it. The detector, the stored flag, and every guarded behaviour stay intact
+    /// behind the switch, so turning it back on restores protection for existing entries too.
+    var secretGuardEnabled: Bool = false
+
     /// How long a guarded (probably-secret) entry lives before it expires from history, unless
     /// pinned. The password pasted four times this morning should not still be sitting in the
     /// panel this afternoon.
@@ -46,6 +53,13 @@ nonisolated struct CaptureSettings: Sendable, Equatable {
     /// Expire ANY unpinned entry older than this. Zero means off. The agent runs for weeks, so
     /// "history until quit" quietly becomes "history forever" without it.
     var historyLifetime: TimeInterval = 0
+
+    /// The single place the guarded rule is decided. Every consumer asks this rather than reading
+    /// `item.isGuarded` directly: the stored flag records what the detector concluded at capture,
+    /// and the switch decides whether that conclusion is acted on right now.
+    func isGuarded(_ item: ClipItem) -> Bool {
+        secretGuardEnabled && item.isGuarded
+    }
 }
 
 nonisolated enum ExclusionList {

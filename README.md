@@ -77,13 +77,16 @@ The honest version, because a clipboard manager is by nature a pile of sensitive
    decision is made from type identifiers alone, before any payload is fetched. Tests assert the
    payload read count is zero on that path. This cannot be switched off. Two independent guards
    also cover the race where the clipboard changes mid-read.
-5. **Copies that merely LOOK like passwords are guarded.** Most real passwords arrive unmarked,
-   from browsers, terminals, and chat. A detector recognises password shapes, access tokens (AWS,
-   GitHub, Slack, and kin), JWTs, and private key blocks. Flagged entries still paste normally,
-   but they are masked in the panel until revealed (`⌘R`), expire after five minutes unless
-   pinned, need confirmation to pin, and a minute after you paste one the clipboard is cleared if
-   it still holds it, the way password managers clean up after themselves. Strict mode (off by
-   default) refuses to record them at all.
+5. **Optional, off by default: copies that merely LOOK like passwords can be guarded.** Most real
+   passwords arrive unmarked, from browsers, terminals, and chat. Turn on "Guard entries that look
+   like passwords" in Settings, Privacy, and a detector recognises password shapes, access tokens
+   (AWS, GitHub, Slack, and kin), JWTs, and private key blocks. Flagged entries still paste
+   normally, but they are masked in the panel until revealed (`⌘R`), hidden from search, expire
+   after five minutes unless pinned (or never, if you prefer), need confirmation to pin, and a
+   minute after you paste one the clipboard is cleared if it still holds it, the way password
+   managers clean up after themselves. Strict mode refuses to record them at all. It ships off
+   because in daily use the masking and early expiry got in the way more often than they helped;
+   with it off, a password copied from a browser is an ordinary entry like any other.
 6. **Excluded apps are never recorded**, also without reading their payloads. Password managers ship
    in the list by default; terminals do not, because people copy from them constantly, but you can
    add them.
@@ -99,9 +102,11 @@ The honest version, because a clipboard manager is by nature a pile of sensitive
 - It cannot stop other apps from reading your clipboard. Any app you run can read the system
   clipboard; that is what a clipboard is. macOS 26's own clipboard prompts are your defence there,
   and ClipPanel adds nothing to that surface.
-- The secret detector is a heuristic. It catches recognisable shapes, not every secret, and it
-  sometimes guards something harmless, which costs a masked preview and a shorter life, never data
-  loss. The exclusion list, strict mode, and the pause switch are the stronger tools.
+- Unless you turn Secret Guard on, a password you copy from anywhere other than a password manager
+  is held like any other entry: visible in the panel and kept until it ages out of history. The
+  guard is a heuristic even when on: it catches recognisable shapes, not every secret, and it
+  sometimes guards something harmless, which costs a masked preview and a shorter life, never
+  data loss. The exclusion list, strict mode, and the pause switch are the stronger tools.
 - It cannot scrub its own memory. Swift strings and data cannot be reliably zeroed, so while an entry
   is in history it is in RAM. Lifetime is kept short (entries are dropped on delete, Clear All, and
   eviction), but no stronger claim is being made.

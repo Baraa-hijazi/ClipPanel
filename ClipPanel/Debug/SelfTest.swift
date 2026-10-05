@@ -250,6 +250,12 @@ enum SelfTest {
 
         print("")
         print("Secret Guard")
+        // The guard is off by default (PLAN.md Item 1). Turned on here by mutating the store
+        // directly, never through captureSettings, which would persist to the user's real
+        // preferences. Restored at the end of the Search section.
+        let guardWasEnabled = coordinator.store.settings.secretGuardEnabled
+        print("INFO  Secret Guard is \(guardWasEnabled ? "on" : "off") in this user's settings")
+        coordinator.store.settings.secretGuardEnabled = true
         check("detector flags a generated password",
               SecretDetector.assess(text: "9k#mQ2$vLx8@pR5z", sourceBundleID: nil)
                   == .probablySecret(.passwordShape))
@@ -335,6 +341,22 @@ enum SelfTest {
         coordinator.sendPanelKeyCommand(.cancel)
         try? await Task.sleep(for: .milliseconds(150))
         check("a second escape closes the panel", !coordinator.panelIsVisible)
+
+        // With the guard off, the flagged entry is an ordinary entry and search finds it by content.
+        coordinator.store.settings.secretGuardEnabled = false
+        coordinator.showPanel()
+        try? await Task.sleep(for: .milliseconds(150))
+        for character in "alpha" {
+            coordinator.sendPanelKeyCommand(.typeCharacter(character))
+        }
+        check("with the guard off, the flagged entry is found by its content",
+              coordinator.panelVisibleCount == 3,
+              detail: "\(coordinator.panelVisibleCount) visible")
+        coordinator.sendPanelKeyCommand(.cancel)
+        coordinator.sendPanelKeyCommand(.cancel)
+        try? await Task.sleep(for: .milliseconds(150))
+
+        coordinator.store.settings.secretGuardEnabled = guardWasEnabled
         coordinator.store.removeEverything()
 
         print("----------------------")

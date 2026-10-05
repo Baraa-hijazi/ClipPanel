@@ -111,7 +111,7 @@ final class AppCoordinator {
                 let outcome = await paster.paste(item, plainTextOnly: plainTextOnly, into: targetApp)
                 if case .failed = outcome {
                     // Nothing was written, so there is nothing to clean up.
-                } else if item.isGuarded, store.settings.clearClipboardAfterPastingGuarded {
+                } else if store.settings.isGuarded(item), store.settings.clearClipboardAfterPastingGuarded {
                     let countAtPaste = pasteboard.changeCount
                     Task {
                         try? await Task.sleep(for: AppCoordinator.guardedClearDelay)

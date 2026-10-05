@@ -783,3 +783,32 @@ updates. That remains the standing recommendation for the credential-gated relea
 Tooling note for whoever debugs BTM next: unprivileged `sfltool dumpbtm` worked exactly once per
 session here, then hung or returned empty. Guard it with a timeout, take its first answer, and do
 not build a verification loop on it. The definitive test of a login item is a restart.
+
+### Secret Guard opt-in (2026-10-06, PLAN.md Item 1)
+
+Secret Guard ships off. `CaptureSettings.secretGuardEnabled` (default false, persisted as
+`secretGuardEnabled`) gates the detector in `ClipboardMonitor`, so with the guard off the detector
+never runs and strict mode is inert. Every downstream behaviour asks one pure rule,
+`CaptureSettings.isGuarded(_:)`, which is `secretGuardEnabled && item.isGuarded`: expiry sweep,
+reveal command, pin confirmation, post-paste clear, the no-matches hint, and the card's masking all
+route through it; the views receive an already-effective flag and never read the raw one. Search
+takes an `excludingGuarded` parameter, true only while the guard is on, since with nothing masked
+there is no oracle to prevent. The stored `isGuarded` flag is kept, not cleared, so turning the
+guard back on restores protection for entries captured while it was on. Settings, Privacy shows the
+master toggle first and the three sub-settings beneath it disabled rather than hidden, and the
+expiry picker gained "Never" (PLAN.md Item 5.3, same control).
+
+Two incidents during the change, both worth remembering:
+
+1. **Xcode 27 broke `SecretDetectorTests` at compile time, independent of this change.** The seven
+   split-string token fixtures (split for GitHub push protection) inside an untyped
+   `@Test(arguments: [...])` literal now exceed the type checker's time budget. Fix: an explicitly
+   typed `nonisolated static let knownTokenFixtures: [String]`, nonisolated because the macro reads
+   arguments outside the main actor under this project's default isolation.
+2. **A replace-all in a test file rewrote the helper's own body into a self-call**, and the
+   resulting infinite recursion crashed the test host. Xcode then reported 120 "failures" taking
+   0.000 seconds each, which were tests that never ran. The tell is the duration; the crash report's
+   faulting stack named the recursion immediately. When a test run fails en masse, read the crash
+   report before reading any assertion.
+
+Totals after the change: 189 unit test cases, self test 52 checks, both green across repeated runs.

@@ -13,6 +13,15 @@ import Testing
 struct GuardedLifecycleTests {
     private let base = Date(timeIntervalSince1970: 1_000_000)
 
+    /// Secret Guard is off by default (PLAN.md Item 1). Everything in this suite tests the
+    /// protection itself, so every store and settings value here turns it on explicitly. The off
+    /// state has its own suite, SecretGuardSwitchTests.
+    private func guardedStore() -> HistoryStore {
+        let store = HistoryStore()
+        store.settings.secretGuardEnabled = true
+        return store
+    }
+
     private func guardedItem(_ text: String, at date: Date, pinned: Bool = false) -> ClipItem {
         var item = textItem(text, at: date, pinned: pinned)
         item.isGuarded = true
@@ -24,7 +33,7 @@ struct GuardedLifecycleTests {
     @Test("A password-shaped copy is captured as guarded")
     func captureFlagsSecrets() {
         let pasteboard = FakePasteboard()
-        let store = HistoryStore()
+        let store = guardedStore()
         let monitor = ClipboardMonitor(
             source: pasteboard,
             currentSettings: { store.settings },
@@ -42,7 +51,7 @@ struct GuardedLifecycleTests {
     @Test("Ordinary text is captured unguarded")
     func captureLeavesOrdinaryAlone() {
         let pasteboard = FakePasteboard()
-        let store = HistoryStore()
+        let store = guardedStore()
         let monitor = ClipboardMonitor(
             source: pasteboard,
             currentSettings: { store.settings },
@@ -61,6 +70,7 @@ struct GuardedLifecycleTests {
     func strictModeDrops() {
         let pasteboard = FakePasteboard()
         var settings = CaptureSettings()
+        settings.secretGuardEnabled = true
         settings.strictSecretMode = true
         let captured = Box<[ClipItem]>([])
         let monitor = ClipboardMonitor(
@@ -84,7 +94,7 @@ struct GuardedLifecycleTests {
 
     @Test("Guarded entries expire after their lifetime, ordinary ones stay")
     func guardedExpire() {
-        let store = HistoryStore()
+        let store = guardedStore()
         store.record(guardedItem("P@ssw0rd!", at: base))
         store.record(textItem("ordinary", at: base))
 
@@ -100,7 +110,7 @@ struct GuardedLifecycleTests {
 
     @Test("A pinned guarded entry never expires")
     func pinnedGuardedSurvives() {
-        let store = HistoryStore()
+        let store = guardedStore()
         store.record(guardedItem("kept secret", at: base, pinned: true))
 
         let farFuture = base.addingTimeInterval(1_000_000)
@@ -110,7 +120,7 @@ struct GuardedLifecycleTests {
 
     @Test("Re-copying a guarded entry restarts its clock")
     func recopyExtendsLife() {
-        let store = HistoryStore()
+        let store = guardedStore()
         store.record(guardedItem("P@ssw0rd!", at: base))
 
         // Re-copied shortly before it would have expired.
@@ -124,7 +134,7 @@ struct GuardedLifecycleTests {
 
     @Test("The global lifetime expires ordinary entries when enabled")
     func globalLifetimeWorks() {
-        let store = HistoryStore()
+        let store = guardedStore()
         store.settings.historyLifetime = 3600
         store.record(textItem("old news", at: base))
         store.record(textItem("pinned news", at: base, pinned: true))
@@ -136,7 +146,7 @@ struct GuardedLifecycleTests {
 
     @Test("The global lifetime off by default means no expiry")
     func globalLifetimeDefaultsOff() {
-        let store = HistoryStore()
+        let store = guardedStore()
         store.record(textItem("stays forever", at: base))
 
         #expect(store.sweepExpired(now: base.addingTimeInterval(10_000_000)) == 0)

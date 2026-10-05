@@ -152,9 +152,11 @@ final class ClipboardMonitor: NSObject {
         case .record:
             guard var item else { return report(.nothingUsable) }
 
-            // Secret Guard: text entries get assessed once, at capture. Detection requires the
-            // payload, which has already been read exactly once by this point.
-            if let plainText = item.plainTextRepresentation,
+            // Secret Guard: text entries get assessed once, at capture, and only while the guard is
+            // on. Detection requires the payload, which has already been read exactly once by this
+            // point. With the guard off the detector never runs, so strict mode is inert too.
+            if settings.secretGuardEnabled,
+               let plainText = item.plainTextRepresentation,
                let text = String(data: plainText.data, encoding: .utf8),
                case .probablySecret = SecretDetector.assess(text: text, sourceBundleID: sourceBundleID) {
                 if settings.strictSecretMode {

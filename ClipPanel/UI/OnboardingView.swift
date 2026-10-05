@@ -60,7 +60,7 @@ struct OnboardingView: View {
                     bullet("Copies marked secret by password managers are never recorded, and never even read.")
                     bullet("History lives in memory only. Quit or restart and it is gone, except what you pin.")
                     bullet("Pinned entries are encrypted on disk, with the key in your login keychain.")
-                    bullet("Copies that look like passwords are masked and expire after a few minutes.")
+                    bullet("Optional, off by default: guard copies that look like passwords (masked, expire on their own). Turn it on in Settings, Privacy.")
                 }
                 .font(.callout)
                 .frame(maxWidth: .infinity, alignment: .leading)

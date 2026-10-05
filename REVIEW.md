@@ -293,3 +293,17 @@ ADD a guarded verdict, never remove one, so the worst case is a false positive r
 - **P3** Foundation Models detector spike, behind a flag, additive-only, no shipping commitment.
 - Standing, unchanged: Developer ID signing (`Scripts/package-release.sh`), which also resolves the
   login item, keychain, and Gatekeeper issues at the root.
+
+---
+
+## Note, 2026-10-06: Secret Guard is now opt-in
+
+Parts 2 and 4 describe Secret Guard as always on. As of PLAN.md Item 1 it ships OFF by default, at
+the user's request after living with it: the masking, five-minute expiry, and post-paste clipboard
+clearing got in the way more than they helped. Nothing was deleted. One master switch,
+`CaptureSettings.secretGuardEnabled`, gates detection at capture, and a single rule,
+`CaptureSettings.isGuarded(_:)`, gates every downstream behaviour, so an entry flagged while the
+guard was on is treated as ordinary while it is off and regains its protection when it is turned
+back on. The concealed-marker rule (password managers' own flag) is unaffected and still cannot be
+switched off. The security narrative above remains accurate for users who turn the guard on, and
+the README's non-guarantees now say plainly what is held in the clear when it is off.

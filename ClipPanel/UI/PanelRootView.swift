@@ -125,7 +125,7 @@ struct PanelRootView: View {
         VStack(spacing: 6) {
             Text("No matches.")
                 .font(.callout)
-            if store.items.contains(where: \.isGuarded) {
+            if store.items.contains(where: store.settings.isGuarded) {
                 Text("Entries marked as sensitive stay hidden while searching.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -170,7 +170,8 @@ struct PanelRootView: View {
                     selectedID: selection.selectedID,
                     revealedIDs: selection.revealedIDs,
                     actions: actions,
-                    showsCaptions: store.showSourceAppCaptions
+                    showsCaptions: store.showSourceAppCaptions,
+                    guardEnabled: store.settings.secretGuardEnabled
                 )
             }
             .frame(height: listHeight)

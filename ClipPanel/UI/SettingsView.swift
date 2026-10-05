@@ -193,27 +193,34 @@ private struct PrivacySettingsTab: View {
             }
 
             Section("Entries that look like passwords") {
-                Text("Copies that look like passwords or access tokens are masked in the panel and expire on their own. Pasting them works as usual.")
+                Toggle("Guard entries that look like passwords", isOn: secretGuard)
+                Text("When on, copies that look like passwords or access tokens are masked in the panel, hidden from search, and expire on their own. Pasting them works as usual. Off by default.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Picker("Expire them after", selection: guardedLifetime) {
-                    Text("1 minute").tag(TimeInterval(60))
-                    Text("5 minutes").tag(TimeInterval(300))
-                    Text("15 minutes").tag(TimeInterval(900))
-                    Text("1 hour").tag(TimeInterval(3600))
+                // Disabled rather than hidden while the guard is off, so the user can see what the
+                // switch governs before deciding to turn it on.
+                Group {
+                    Picker("Expire them after", selection: guardedLifetime) {
+                        Text("1 minute").tag(TimeInterval(60))
+                        Text("5 minutes").tag(TimeInterval(300))
+                        Text("15 minutes").tag(TimeInterval(900))
+                        Text("1 hour").tag(TimeInterval(3600))
+                        Text("Never").tag(TimeInterval(0))
+                    }
+
+                    Toggle("Clear the clipboard a minute after pasting one", isOn: clearAfterGuardedPaste)
+                    Text("Only when the clipboard still holds that entry. Copying anything newer cancels it.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle("Strict mode: do not save them at all", isOn: strictMode)
+                    Text("A false alarm then means the copy is silently missing from history instead of masked.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-
-                Toggle("Clear the clipboard a minute after pasting one", isOn: clearAfterGuardedPaste)
-                Text("Only when the clipboard still holds that entry. Copying anything newer cancels it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Toggle("Strict mode: do not save them at all", isOn: strictMode)
-                Text("Off by default. A false alarm then means the copy is silently missing from history instead of masked.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .disabled(!coordinator.captureSettings.secretGuardEnabled)
             }
 
             Section("Whole history") {
@@ -283,6 +290,17 @@ private struct PrivacySettingsTab: View {
             set: {
                 var settings = coordinator.captureSettings
                 settings.clearClipboardAfterPastingGuarded = $0
+                coordinator.captureSettings = settings
+            }
+        )
+    }
+
+    private var secretGuard: Binding<Bool> {
+        Binding(
+            get: { coordinator.captureSettings.secretGuardEnabled },
+            set: {
+                var settings = coordinator.captureSettings
+                settings.secretGuardEnabled = $0
                 coordinator.captureSettings = settings
             }
         )

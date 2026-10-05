@@ -13,13 +13,16 @@ struct ItemCardView: View {
     let item: ClipItem
     let isSelected: Bool
     let isRevealed: Bool
+    /// Effective guarded state (Secret Guard switch AND the detector's verdict), decided by the
+    /// caller. Never read `isGuarded` in this view.
+    let isGuarded: Bool
     let actions: PanelActions
     var showsCaption = true
 
     @State private var isHovering = false
 
     private var showsActions: Bool { isHovering || isSelected }
-    private var isMasked: Bool { item.isGuarded && !isRevealed }
+    private var isMasked: Bool { isGuarded && !isRevealed }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -91,7 +94,7 @@ struct ItemCardView: View {
         switch item.preview {
         case .text(let string):
             HStack(alignment: .top, spacing: 6) {
-                if item.isGuarded {
+                if isGuarded {
                     Image(systemName: "shield.fill")
                         .font(.caption)
                         .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.orange))
@@ -148,12 +151,12 @@ struct ItemCardView: View {
         let when = item.createdAt.formatted(.relative(presentation: .numeric))
         let source = AppNameResolver.shared.displayName(for: item.sourceBundleID)
         let base = source.map { "\($0)  ·  \(when)" } ?? when
-        return item.isGuarded ? "\(base)  ·  expires soon" : base
+        return isGuarded ? "\(base)  ·  expires soon" : base
     }
 
     private var rowActions: some View {
         HStack(spacing: 2) {
-            if item.isGuarded {
+            if isGuarded {
                 Button {
                     actions.toggleReveal(item.id)
                 } label: {

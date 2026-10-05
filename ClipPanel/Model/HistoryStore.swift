@@ -106,7 +106,7 @@ final class HistoryStore {
         items.removeAll { item in
             guard !item.isPinned else { return false }
             let age = now.timeIntervalSince(item.createdAt)
-            if item.isGuarded, settings.guardedLifetime > 0, age > settings.guardedLifetime {
+            if settings.isGuarded(item), settings.guardedLifetime > 0, age > settings.guardedLifetime {
                 return true
             }
             if settings.historyLifetime > 0, age > settings.historyLifetime {

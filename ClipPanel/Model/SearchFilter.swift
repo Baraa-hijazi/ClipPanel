@@ -24,16 +24,21 @@ nonisolated enum SearchFilter {
     /// Entries matching `query`, in their original order. An empty or whitespace-only query
     /// returns everything, guarded entries included: they are only hidden while a search is
     /// actually narrowing things down.
+    ///
+    /// `excludingGuarded` is the Secret Guard switch. The exclusion exists only because guarded
+    /// previews are masked; with the guard off nothing is masked, a filter surviving a row reveals
+    /// nothing the row itself does not already show, and so there is no oracle to prevent.
     static func filter(
         _ items: [ClipItem],
         query: String,
+        excludingGuarded: Bool = true,
         appName: (String?) -> String?
     ) -> [ClipItem] {
         let tokens = tokens(from: query)
         guard !tokens.isEmpty else { return items }
 
         return items.filter { item in
-            guard !item.isGuarded else { return false }
+            guard !(excludingGuarded && item.isGuarded) else { return false }
             return matches(item, tokens: tokens, appName: appName(item.sourceBundleID))
         }
     }

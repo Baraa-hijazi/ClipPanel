@@ -48,7 +48,11 @@ final class PanelController: NSObject, NSWindowDelegate {
     /// Every keyboard command and the view itself operate on this, never on `store.items`
     /// directly, so search cannot desynchronise what the arrows move over from what is drawn.
     var visibleItems: [ClipItem] {
-        SearchFilter.filter(store.items, query: selection.query) {
+        SearchFilter.filter(
+            store.items,
+            query: selection.query,
+            excludingGuarded: store.settings.secretGuardEnabled
+        ) {
             AppNameResolver.shared.displayName(for: $0)
         }
     }
@@ -172,7 +176,8 @@ final class PanelController: NSObject, NSWindowDelegate {
 
         case .toggleReveal:
             guard let id = selection.selectedID,
-                  store.items.first(where: { $0.id == id })?.isGuarded == true
+                  let item = store.items.first(where: { $0.id == id }),
+                  store.settings.isGuarded(item)
             else { return false }
             selection.toggleReveal(id: id)
             return true
@@ -216,7 +221,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         // Pinning a guarded entry promotes a probable secret onto disk (encrypted, but on disk),
         // so it does not happen silently (REVIEW.md part 2). Pinned entries also stop expiring.
         if let item = store.items.first(where: { $0.id == id }),
-           item.isGuarded, !item.isPinned,
+           store.settings.isGuarded(item), !item.isPinned,
            !confirmPinningGuardedEntry() {
             return
         }
@@ -355,7 +360,11 @@ final class PanelController: NSObject, NSWindowDelegate {
         guard !visible.isEmpty else { return 0 }
 
         let probe = NSHostingView(
-            rootView: HistoryRowsView(items: visible, selectedID: nil)
+            rootView: HistoryRowsView(
+                items: visible,
+                selectedID: nil,
+                guardEnabled: store.settings.secretGuardEnabled
+            )
         )
         probe.layoutSubtreeIfNeeded()
         let natural = probe.fittingSize.height

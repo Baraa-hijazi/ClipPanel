@@ -27,7 +27,10 @@ struct SecretDetectorTests {
     // reading this repository) matches them as live credentials when they appear contiguously in
     // source. The VALUES the detector sees are unchanged. Do not "simplify" them back into single
     // literals; the first push of this repository was blocked for exactly that.
-    @Test("Known token shapes are flagged", arguments: [
+    //
+    // Held in an explicitly typed static rather than inline in the macro: Xcode 27's type checker
+    // times out on seven string concatenations inside an untyped array literal in @Test arguments.
+    nonisolated static let knownTokenFixtures: [String] = [
         "AKIA" + "IOSFODNN7EXAMPLE",                            // AWS access key id
         "ghp_" + "16C7e42F292c6912E7710c838347Ae178B4a",        // GitHub personal access token
         "sk-proj-" + "AbCdEfGhIjKlMnOpQrStUvWx",                // OpenAI style
@@ -35,7 +38,9 @@ struct SecretDetectorTests {
         "AIzaSy" + "D4iE2xVSpqzLE7KqBnE3f8W3mhrpV1BXY",         // Google API key
         "glpat-" + "XyZ123AbC456DeF789Gh",                      // GitLab
         "eyJhbGciOiJIUzI1NiJ9" + ".eyJzdWIiOiIxIn0.dQw4w9WgXcQ", // JWT
-    ])
+    ]
+
+    @Test("Known token shapes are flagged", arguments: knownTokenFixtures)
     func knownTokensFlagged(token: String) {
         #expect(SecretDetector.assess(text: token, sourceBundleID: nil)
                 == .probablySecret(.knownTokenShape))

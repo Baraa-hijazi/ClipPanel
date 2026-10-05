@@ -16,6 +16,9 @@ struct HistoryRowsView: View {
     var revealedIDs: Set<ClipItem.ID> = []
     var actions: PanelActions = .inert
     var showsCaptions = true
+    /// The Secret Guard switch. Rows receive an effective per-item flag computed from it, so a
+    /// card never decides for itself whether to mask.
+    var guardEnabled = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,6 +27,7 @@ struct HistoryRowsView: View {
                     item: item,
                     isSelected: item.id == selectedID,
                     isRevealed: revealedIDs.contains(item.id),
+                    isGuarded: guardEnabled && item.isGuarded,
                     actions: actions,
                     showsCaption: showsCaptions
                 )
