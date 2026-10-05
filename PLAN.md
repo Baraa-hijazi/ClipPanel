@@ -9,6 +9,37 @@ commits, one commit per item with the reasoning in the message, `make test` and 
 `Scripts/verify-release.sh` green before each commit, and DESIGN.md section 13 gets a log entry per
 item recording what changed and why. Tests never touch the real clipboard or keychain.
 
+## Execution status (2026-10-06, for the review)
+
+Executed in one session; released as **v0.2.0** (tag `v0.2.0`, GitHub release with the unsigned zip,
+marked latest). Gates on the tagged commit: 206 unit cases, 56 self test checks (repeated clean
+runs), logging audit, release verification, all green. Per-item detail and every deviation is in
+DESIGN.md section 13.
+
+| Item | Status | Commit |
+|---|---|---|
+| 1. Secret Guard opt-in | Done as specified | `ee5c710` |
+| 7. Recent entries in menu | Done; rows use SF Symbols, not thumbnails (reason in DESIGN) | `ef88ef8` |
+| 2. Hover layout stability | Done; test written first, failed on old code (17 pt jumps), passes now | `35bc6e6` |
+| 3. Liquid Glass | Done via `NSGlassEffectView`; no glass pill (glass on glass), sliding highlight instead; Icon Composer icon deferred | `106d48c` |
+| 4. README repositioning | Done; claims about Spotlight limited to what is certain | `6656ff0` |
+| 5.1 Push helper | Done: `~/.local/bin/clippanel-push.sh` | `c866a95` |
+| 5.2 Name cache cap | Already done in an earlier round | none |
+| 5.3 "Never" expiry | Done with Item 1 | `ee5c710` |
+| 5.4 Test preference isolation | Done, verified byte-identical real prefs after a full run | `61076e6` |
+| 6. On-device model spike | Done, negative: 4/8 accuracy, 250 ms median; not integrated | `c866a95` |
+
+Unplanned fixes found along the way: `SecretDetectorTests` no longer compiled under Xcode 27
+(type-checker budget on split-string fixtures), and the self test's visibility check flaked about
+one run in six whenever the user clicked another app (now one announced retry).
+
+**Still needs a human, because no headless run can see it:**
+1. The glass panel over a busy desktop, light and dark, and with Reduce Transparency on.
+2. The menu bar menu as rendered: labels, symbols, the ⌘1 to ⌘9 hints, "Show All...".
+3. The hover fix by eye, with the pointer sweeping across long entries.
+4. The Icon Composer icon (deferred; needs Apple's GUI tool).
+5. Standing: Developer ID signing.
+
 ---
 
 ## Item 1: Secret Guard becomes opt-in (user request, do first)
