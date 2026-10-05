@@ -19,7 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Unit tests are hosted in this app, and a live monitor would poll the real clipboard
         // (raising the macOS 26 privacy alert and hanging the run) and claim the global hot key
         // out from under a copy of the app the user may already be running.
-        guard !isHostingTests else {
+        guard !RuntimeEnvironment.isHostingTests else {
             Log.app.info("Test host launch: capture and hot key left unstarted")
             return
         }
@@ -41,8 +41,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.stop()
     }
 
-    private var isHostingTests: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-            || ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil
-    }
 }

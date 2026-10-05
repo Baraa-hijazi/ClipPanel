@@ -150,16 +150,16 @@ struct SecretGuardSwitchTests {
     @Test("The switch round trips through preferences and defaults to off when unset")
     func preferencesRoundTrip() {
         let key = "secretGuardEnabled"
-        let saved = UserDefaults.standard.object(forKey: key)
+        let saved = AppPreferences.defaults.object(forKey: key)
         defer {
             if let saved {
-                UserDefaults.standard.set(saved, forKey: key)
+                AppPreferences.defaults.set(saved, forKey: key)
             } else {
-                UserDefaults.standard.removeObject(forKey: key)
+                AppPreferences.defaults.removeObject(forKey: key)
             }
         }
 
-        UserDefaults.standard.removeObject(forKey: key)
+        AppPreferences.defaults.removeObject(forKey: key)
         #expect(AppPreferences.loadCaptureSettings().secretGuardEnabled == false)
 
         var settings = AppPreferences.loadCaptureSettings()

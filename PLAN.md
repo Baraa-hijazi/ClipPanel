@@ -228,7 +228,7 @@ Secret Guard is described as optional.
    who keep Secret Guard on can still opt out of expiry alone; `sweepExpired` already treats 0 as
    disabled.
 
-4. **Tests must not touch the user's real preferences.** Found during Item 1: unit tests run
+4. DONE. **Tests must not touch the user's real preferences.** Found during Item 1: unit tests run
    inside the app as test host, so `UserDefaults.standard` IS the user's `com.baraahijazi.ClipPanel`
    domain, and every `AppPreferences.save` call in a test writes all keys into it (after Item 1 the
    user's domain contained a `secretGuardEnabled` key the user never set). Existing tests save and

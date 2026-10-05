@@ -149,23 +149,23 @@ struct ImageCapacityTests {
     @Test("Image and total limits round trip through preferences with clamping")
     func preferencesRoundTrip() {
         let keys = ["maxImageMegabytes", "maxTotalMegabytes"]
-        let saved = keys.map { ($0, UserDefaults.standard.object(forKey: $0)) }
+        let saved = keys.map { ($0, AppPreferences.defaults.object(forKey: $0)) }
         defer {
             for (key, value) in saved {
-                if let value { UserDefaults.standard.set(value, forKey: key) }
-                else { UserDefaults.standard.removeObject(forKey: key) }
+                if let value { AppPreferences.defaults.set(value, forKey: key) }
+                else { AppPreferences.defaults.removeObject(forKey: key) }
             }
         }
 
-        UserDefaults.standard.set(128, forKey: "maxImageMegabytes")
-        UserDefaults.standard.set(512, forKey: "maxTotalMegabytes")
+        AppPreferences.defaults.set(128, forKey: "maxImageMegabytes")
+        AppPreferences.defaults.set(512, forKey: "maxTotalMegabytes")
         var loaded = AppPreferences.loadCaptureSettings()
         #expect(loaded.maxImageItemBytes == 128 * 1024 * 1024)
         #expect(loaded.maxTotalBytes == 512 * 1024 * 1024)
 
         // Hand-edited nonsense is clamped, not obeyed.
-        UserDefaults.standard.set(1, forKey: "maxImageMegabytes")
-        UserDefaults.standard.set(1_000_000, forKey: "maxTotalMegabytes")
+        AppPreferences.defaults.set(1, forKey: "maxImageMegabytes")
+        AppPreferences.defaults.set(1_000_000, forKey: "maxTotalMegabytes")
         loaded = AppPreferences.loadCaptureSettings()
         #expect(loaded.maxImageItemBytes == 8 * 1024 * 1024)
         #expect(loaded.maxTotalBytes == 4096 * 1024 * 1024)

@@ -40,7 +40,21 @@ nonisolated enum AppPreferences {
     static let imageMegabyteRange = 8...256
     static let totalMegabyteRange = 64...4096
 
-    private static var defaults: UserDefaults { .standard }
+    /// The test host runs this app's code, so without this every test that saves a preference would
+    /// write into the user's real `com.baraahijazi.ClipPanel` domain (PLAN.md Item 5.4 found exactly
+    /// that). Under test the store is a dedicated suite, wiped once at process start, so tests begin
+    /// from defaults and cannot reach real settings. Internal rather than private so tests can seed
+    /// raw values into the same store the code under test reads.
+    ///
+    /// `nonisolated(unsafe)` because this SDK does not mark UserDefaults Sendable, while Apple
+    /// documents it as thread-safe; the reference itself is a let, assigned once.
+    nonisolated(unsafe) static let defaults: UserDefaults = {
+        guard RuntimeEnvironment.isHostingTests else { return .standard }
+        let suiteName = "com.baraahijazi.ClipPanel.tests"
+        let suite = UserDefaults(suiteName: suiteName) ?? .standard
+        suite.removePersistentDomain(forName: suiteName)
+        return suite
+    }()
 
     static var hasCompletedOnboarding: Bool {
         get { defaults.bool(forKey: Key.onboardingCompleted) }

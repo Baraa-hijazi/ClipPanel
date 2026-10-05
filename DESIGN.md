@@ -812,3 +812,18 @@ Two incidents during the change, both worth remembering:
    report before reading any assertion.
 
 Totals after the change: 189 unit test cases, self test 52 checks, both green across repeated runs.
+
+### Tests isolated from real preferences (2026-10-06, PLAN.md Item 5.4)
+
+Unit tests run inside the app as test host, so `UserDefaults.standard` was the user's real
+`com.baraahijazi.ClipPanel` domain, and every `AppPreferences.save` in a test wrote all keys into
+it. Now `AppPreferences.defaults` is decided once per process: the real domain normally, and under
+test a dedicated `com.baraahijazi.ClipPanel.tests` suite wiped at process start. One process-wide
+decision rather than swapping a global per test, because Swift Testing runs suites in parallel
+and a swapped global would race. `RuntimeEnvironment.isHostingTests` is the shared check, used by
+`AppDelegate` too. Tests seed raw values through `AppPreferences.defaults`, never `.standard`.
+
+Verified the way the plan's acceptance asks: the user's domain exported before and after a full
+189-case run is byte-identical, and the test keys appear only in the test suite domain.
+`nonisolated(unsafe)` on the static is justified in place: the SDK does not mark UserDefaults
+Sendable, Apple documents it thread-safe, and the reference is a let assigned once.
