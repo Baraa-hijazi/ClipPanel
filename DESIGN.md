@@ -910,3 +910,13 @@ Deliberate departures from the plan, each with its reason:
 
 Needs a human eye, and is on the review checklist: how the glass actually reads over a busy desktop,
 light and dark, and with Reduce Transparency on. None of that is visible to a headless run.
+
+### README repositioned (2026-10-06, PLAN.md Item 4)
+
+New section "Versus the clipboard history in Spotlight". It states the one fact about Spotlight's
+built-in history that this project is confident of (about eight hours of recent copies, built in,
+since macOS 26) and says plainly that if that covers you, you do not need ClipPanel. Everything
+else is framed as what ClipPanel adds, rather than as claims about what Spotlight lacks, because
+those details change between releases and a README that misdescribes a competitor is worse than one
+that does not describe it. Secret Guard is listed as optional. The usage section now covers the
+menu bar's recent entries and their screenshot limitation.

@@ -6,6 +6,25 @@ you copied, pick one, and it goes back where you were typing.
 A menu bar app: no Dock icon, no window until you ask for one. macOS 26 or later, Apple silicon or
 Intel. No dependencies, and no network code of any kind.
 
+## Versus the clipboard history in Spotlight
+
+Since macOS 26, Spotlight can keep a short clipboard history of its own, about eight hours of
+recent copies, built in and free. If that covers you, you do not need this app.
+
+ClipPanel is for when you want more than that:
+
+- **Pins that survive restarts**, encrypted on disk with the key in your keychain.
+- **A dedicated panel at your pointer**, keyboard-first: one shortcut, type to search, Return
+  to paste, `⌘P` to pin, the Windows Win+V habit intact.
+- **Your latest copies in the menu bar menu**, one click away, `⌘1` through `⌘9`.
+- **History as long or short as you choose**: kept until you quit, expired on a schedule, cleared
+  when the screen locks, or wiped instantly with a panic shortcut.
+- **Control over what is recorded**: password managers' secret copies are never read, apps you
+  exclude are never recorded, and an optional guard masks and expires anything that looks like a
+  password or access token.
+- **Images and files that paste back faithfully**, screenshots included.
+- **Nothing you can't check**: no network code, and the whole source is here.
+
 ## Using it
 
 | Action | Key |
@@ -23,8 +42,11 @@ Intel. No dependencies, and no network code of any kind.
 The shortcut is `⌃⌘V` rather than `⇧⌘V` because `⇧⌘V` is Paste and Match Style in most Mac apps, and
 `⌥⌘V` is Move Item Here in Finder. Change it in Settings if you would rather have something else.
 
-Everything is also reachable from the menu bar icon: open the panel, pause capture, Clear All,
-Panic Wipe, and Settings. Panic Wipe (also `⌃⌥⌘⌫`, disableable) clears every unpinned entry
+Click the menu bar icon for your latest copies (eight by default, adjustable or hideable in
+Settings, General): pick one, or press `⌘1` through `⌘9` while the menu is open, and it pastes
+just as it would from the panel. The same menu has Show All, pause capture, Clear All, Panic
+Wipe, and Settings. The menu cannot be hidden from screenshots the way the panel is, so each
+entry there shows a single short line. Panic Wipe (also `⌃⌥⌘⌫`, disableable) clears every unpinned entry
 instantly. Optional protections in Settings, Privacy: expire the whole history on a schedule,
 clear it when the screen locks, and require Touch ID or your password the first time the panel
 opens after a lock.
