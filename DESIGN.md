@@ -853,3 +853,28 @@ a guarded entry's content never reaches its label.
 
 Not verifiable headlessly: how the bridged NSMenu actually renders the labels, symbols, and
 shortcuts. Needs a look by a human, listed in the review checklist.
+
+### Hover no longer changes layout (2026-10-06, PLAN.md Item 2)
+
+The user's screen recording showed text reflowing as the pointer crossed rows. Mechanism, as
+diagnosed in REVIEW.md part 4: `if showsActions { rowActions }` inserted the pin and delete buttons
+on hover, narrowing the text column and re-wrapping the preview. Two more width-changers sat in the
+same row: the pin glyph appeared only on pinned rows, and `pin` versus `pin.slash` are different
+symbol widths.
+
+Test first, then fix. `RowLayoutStabilityTests` renders cards at the real panel width across 101
+text lengths (only lengths near a wrap boundary expose the bug) and compares heights selected versus
+unselected, and pinned versus unpinned; selection is the testable proxy for hover because both
+drive `showsActions`. Run against the unfixed code it FAILED, with rows jumping 17 pt (one full
+line) at lengths such as 56, 107, and 158. After the fix it passes. The fix: actions and the pin
+glyph are always in the HStack and only their opacity changes (hit testing and accessibility follow
+visibility), every action button has a fixed 16 pt frame, the pin column is a fixed 12 pt, and the
+preview text is `fixedSize(vertical)` so it wraps once against a constant width. The panel's
+measurement probe depended on this invariant all along without knowing it; it now says so.
+
+Self test flake, diagnosed rather than ignored: "panel is on screen after show" and "holds key
+focus" failed together about one run in six, on untouched code too. Every failing run had the
+user working in another app. The panel hides the instant it loses key status (click-outside to
+dismiss), so a real click during the 300 ms window legitimately closes it. The check now retries
+once, announced in the output, never silently: a real defect fails both attempts, a stray click
+does not repeat on cue. Eight consecutive runs clean afterwards.

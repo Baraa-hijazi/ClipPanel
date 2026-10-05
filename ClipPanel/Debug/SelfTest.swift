@@ -56,7 +56,18 @@ enum SelfTest {
         coordinator.showPanel()
         try? await Task.sleep(for: .milliseconds(300))
 
-        let shown = coordinator.panelDiagnostics
+        // One retry, and only for losing the panel: it hides the moment it loses key status (the
+        // click-outside-to-dismiss behaviour), so a person clicking another app during this window
+        // legitimately closes it. Measured at about one run in six while the user was working in
+        // another app, on untouched code as well. A real defect fails both attempts; a stray click
+        // does not repeat on cue. The retry is announced, never silent.
+        var shown = coordinator.panelDiagnostics
+        if !shown.isVisible || !shown.isKeyWindow {
+            print("INFO  panel lost visibility or key focus within 300 ms (likely live user input); retrying once")
+            coordinator.showPanel()
+            try? await Task.sleep(for: .milliseconds(300))
+            shown = coordinator.panelDiagnostics
+        }
         check("panel is on screen after show", shown.isVisible)
         check("panel can take key focus", shown.canBecomeKey)
         check("panel actually holds key focus", shown.isKeyWindow)

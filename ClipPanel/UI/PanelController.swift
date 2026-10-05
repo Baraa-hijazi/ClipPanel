@@ -355,6 +355,10 @@ final class PanelController: NSObject, NSWindowDelegate {
     /// Measuring separately is what makes the panel size correctly. Asking a ScrollView for its
     /// fitting size returns something near its minimum, because scroll views are happy at any
     /// height, which previously sized the whole panel as though it held a single row.
+    ///
+    /// The probe renders rows unselected and unhovered, so it is only correct because a row's size
+    /// does not depend on either (PLAN.md Item 2, enforced by RowLayoutStabilityTests). Before that
+    /// fix, hovering a row could add a line of text the probe never measured.
     private func measuredListHeight() -> CGFloat {
         let visible = visibleItems
         guard !visible.isEmpty else { return 0 }

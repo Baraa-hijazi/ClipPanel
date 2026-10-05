@@ -24,6 +24,17 @@ struct ItemCardView: View {
     private var showsActions: Bool { isHovering || isSelected }
     private var isMasked: Bool { isGuarded && !isRevealed }
 
+    /// Width every row action occupies, whatever its symbol. `pin` and `pin.slash` (and `eye` and
+    /// `eye.slash`) are different widths, so without a fixed frame toggling one would nudge the
+    /// text column too.
+    private static let actionWidth: CGFloat = 16
+    private static let pinColumnWidth: CGFloat = 12
+
+    /// Layout is identical whether or not the row is hovered, selected, or pinned (PLAN.md Item 2).
+    /// The actions and the pin glyph are always in the HStack and only their opacity changes, so the
+    /// text column has one width, the preview wraps once, and hovering can never re-wrap a row or
+    /// resize the panel under the pointer. RowLayoutStabilityTests holds this, and
+    /// PanelController's measurement probe (which renders rows unselected) depends on it.
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             pinIndicator
@@ -34,10 +45,12 @@ struct ItemCardView: View {
                 }
             }
             Spacer(minLength: 0)
-            if showsActions {
-                rowActions
-            }
+            rowActions
+                .opacity(showsActions ? 1 : 0)
+                .allowsHitTesting(showsActions)
+                .accessibilityHidden(!showsActions)
         }
+        .animation(.easeOut(duration: 0.1), value: showsActions)
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .background(background)
@@ -48,14 +61,15 @@ struct ItemCardView: View {
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 
-    @ViewBuilder
+    /// Always occupies its column, visible only when pinned, so pinning never shifts the text.
     private var pinIndicator: some View {
-        if item.isPinned {
-            Image(systemName: "pin.fill")
-                .font(.caption)
-                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
-                .padding(.top, 2)
-        }
+        Image(systemName: "pin.fill")
+            .font(.caption)
+            .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.tint))
+            .padding(.top, 2)
+            .frame(width: Self.pinColumnWidth)
+            .opacity(item.isPinned ? 1 : 0)
+            .accessibilityHidden(!item.isPinned)
     }
 
     private var background: some View {
@@ -105,6 +119,7 @@ struct ItemCardView: View {
                     .lineLimit(4)
                     .truncationMode(.tail)
                     .textSelection(.disabled)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
         case .image(let thumbnailPNG, let pixelSize):
@@ -161,6 +176,7 @@ struct ItemCardView: View {
                     actions.toggleReveal(item.id)
                 } label: {
                     Image(systemName: isRevealed ? "eye.slash" : "eye")
+                    .frame(width: Self.actionWidth)
                 }
                 .help(isRevealed ? "Mask again" : "Reveal (command-R)")
             }
@@ -169,6 +185,7 @@ struct ItemCardView: View {
                 actions.togglePin(item.id)
             } label: {
                 Image(systemName: item.isPinned ? "pin.slash" : "pin")
+                    .frame(width: Self.actionWidth)
             }
             .help(item.isPinned ? "Unpin" : "Pin, so this survives Clear All")
 
@@ -176,6 +193,7 @@ struct ItemCardView: View {
                 actions.delete(item.id)
             } label: {
                 Image(systemName: "xmark")
+                    .frame(width: Self.actionWidth)
             }
             .help("Remove from history")
         }
