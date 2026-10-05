@@ -16,6 +16,8 @@ struct ItemCardView: View {
     /// Effective guarded state (Secret Guard switch AND the detector's verdict), decided by the
     /// caller. Never read `isGuarded` in this view.
     let isGuarded: Bool
+    /// Whether this entry will actually be removed early (guarded, not pinned, lifetime not Never).
+    var expires = false
     let actions: PanelActions
     var showsCaption = true
     /// Shared across the list's rows so the selection highlight slides between them rather than
@@ -179,7 +181,7 @@ struct ItemCardView: View {
         let when = item.createdAt.formatted(.relative(presentation: .numeric))
         let source = AppNameResolver.shared.displayName(for: item.sourceBundleID)
         let base = source.map { "\($0)  ·  \(when)" } ?? when
-        return isGuarded ? "\(base)  ·  expires soon" : base
+        return expires ? "\(base)  ·  expires soon" : base
     }
 
     private var rowActions: some View {

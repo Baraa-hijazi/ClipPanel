@@ -16,9 +16,10 @@ struct HistoryRowsView: View {
     var revealedIDs: Set<ClipItem.ID> = []
     var actions: PanelActions = .inert
     var showsCaptions = true
-    /// The Secret Guard switch. Rows receive an effective per-item flag computed from it, so a
-    /// card never decides for itself whether to mask.
-    var guardEnabled = false
+    /// The capture settings the guard rules read. Rows receive effective per-item flags computed
+    /// from them, so a card never decides for itself whether to mask or promise expiry. The default
+    /// has the guard off.
+    var settings = CaptureSettings()
 
     @Namespace private var selectionSpace
 
@@ -29,7 +30,8 @@ struct HistoryRowsView: View {
                     item: item,
                     isSelected: item.id == selectedID,
                     isRevealed: revealedIDs.contains(item.id),
-                    isGuarded: guardEnabled && item.isGuarded,
+                    isGuarded: settings.isGuarded(item),
+                    expires: settings.expiresEarly(item),
                     actions: actions,
                     showsCaption: showsCaptions,
                     selectionNamespace: selectionSpace

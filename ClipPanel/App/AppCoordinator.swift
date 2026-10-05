@@ -458,7 +458,13 @@ final class AppCoordinator {
 
     // MARK: - Windows
 
-    func showSettings() {
+    /// The tab Settings shows; observed by SettingsView so a caller can pick it before opening.
+    var settingsTab: SettingsTab = .general
+
+    /// Opens Settings, optionally on a specific tab (the menu's status rows go straight to the tab
+    /// that fixes what they report).
+    func showSettings(tab: SettingsTab? = nil) {
+        if let tab { settingsTab = tab }
         permissions.refresh()
         settingsWindow.show()
     }

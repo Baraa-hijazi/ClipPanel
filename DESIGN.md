@@ -944,3 +944,12 @@ script was throwaway, but the eight inputs above are the benchmark to beat.
 script that every reboot deleted. It passes the personal account's token from gh's keyring to git for
 one push, because gh's credential helper otherwise serves the work account's token. Usage from the
 repo: `clippanel-push.sh origin main`.
+
+### Review findings fixed (2026-10-06, REVIEW.md part 5)
+
+See REVIEW.md part 5, Resolution, for the five fixes. Two points worth keeping here. The menu's
+width is set by its widest row, so menu copy is a layout decision: status rows are now short
+buttons into the Settings tab that explains them, and entry labels cap at 36 characters (408 pt
+widest row before, 220 pt after, measured with `NSFont.menuFont`). And the self test is exposed to
+live typing now that the search box is a real field; failures report a stray query when one exists,
+so interference reads as interference rather than as a regression.

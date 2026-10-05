@@ -35,7 +35,7 @@ ClipPanel is for when you want more than that:
 | Paste the selected entry | `Return` |
 | Paste as plain text | `⌥Return` |
 | Pin, so it survives Clear All and restarts | `⌘P` |
-| Reveal or mask a guarded entry | `⌘R` |
+| Reveal or mask a guarded entry (only with Secret Guard on) | `⌘R` |
 | Remove an entry | `Delete` |
 | Close | `Escape` |
 

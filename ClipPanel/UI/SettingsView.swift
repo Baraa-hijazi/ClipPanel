@@ -5,25 +5,42 @@
 
 import SwiftUI
 
+/// The Settings tabs, addressable so a menu bar status row can open the one that fixes it.
+enum SettingsTab: Hashable {
+    case general
+    case privacy
+    case permissions
+}
+
 struct SettingsView: View {
     /// Weak because the window outlives nothing but is owned by the coordinator; a strong reference
     /// here would be a cycle. A nil coordinator only happens during teardown.
     weak var coordinator: AppCoordinator?
 
     var body: some View {
-        TabView {
+        TabView(selection: selectedTab) {
             if let coordinator {
                 GeneralSettingsTab(coordinator: coordinator)
                     .tabItem { Label("General", systemImage: "gearshape") }
+                    .tag(SettingsTab.general)
 
                 PrivacySettingsTab(coordinator: coordinator)
                     .tabItem { Label("Privacy", systemImage: "hand.raised") }
+                    .tag(SettingsTab.privacy)
 
                 PermissionsSettingsTab(coordinator: coordinator)
                     .tabItem { Label("Permissions", systemImage: "lock.shield") }
+                    .tag(SettingsTab.permissions)
             }
         }
         .frame(width: 540, height: 420)
+    }
+
+    private var selectedTab: Binding<SettingsTab> {
+        Binding(
+            get: { coordinator?.settingsTab ?? .general },
+            set: { coordinator?.settingsTab = $0 }
+        )
     }
 }
 
@@ -86,10 +103,9 @@ private struct GeneralSettingsTab: View {
 
             Section {
                 Picker("Menu bar menu shows", selection: recentEntriesInMenu) {
-                    Text("No recent copies").tag(0)
-                    Text("5 recent copies").tag(5)
-                    Text("8 recent copies").tag(8)
-                    Text("12 recent copies").tag(12)
+                    ForEach(AppPreferences.recentEntriesInMenuChoices, id: \.self) { count in
+                        Text(count == 0 ? "No recent copies" : "\(count) recent copies").tag(count)
+                    }
                 }
                 Text("Click the menu bar icon to pick from your latest copies. Menus cannot be hidden from screenshots the way the panel is, so each entry shows one short line.")
                     .font(.caption)
@@ -410,7 +426,7 @@ private struct PermissionsSettingsTab: View {
                     .font(.headline)
                 Text(coordinator.pinsPersist
                      ? "Encrypted on this Mac, with the key in your login keychain. They do not sync to other devices, by design."
-                     : "Not being saved this session, because the keychain could not be reached. Pins still work until you quit.")
+                     : "Not being saved this session, because macOS did not let ClipPanel read its key from your keychain. Pins still work until you quit. To fix it, quit and reopen ClipPanel; when macOS asks, type your Mac login password (the one you unlock your Mac with) and choose Always Allow.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

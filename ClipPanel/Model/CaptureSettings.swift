@@ -60,6 +60,14 @@ nonisolated struct CaptureSettings: Sendable, Equatable {
     func isGuarded(_ item: ClipItem) -> Bool {
         secretGuardEnabled && item.isGuarded
     }
+
+    /// Whether the expiry sweep will remove this entry early. Mirrors `HistoryStore.sweepExpired`:
+    /// pinned entries never expire, and a lifetime of zero ("Never") disables guarded expiry. The
+    /// card's "expires soon" caption keys off this, so it never promises an expiry that will not
+    /// happen (REVIEW.md part 5, finding 1).
+    func expiresEarly(_ item: ClipItem) -> Bool {
+        isGuarded(item) && !item.isPinned && guardedLifetime > 0
+    }
 }
 
 nonisolated enum ExclusionList {

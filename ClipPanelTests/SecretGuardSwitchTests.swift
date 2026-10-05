@@ -61,6 +61,41 @@ struct SecretGuardSwitchTests {
         #expect(off.isGuarded(plain) == false)
     }
 
+    @Test("Expires-early is promised only when the sweep will actually remove the entry")
+    func expiresEarlyMatchesTheSweep() {
+        var on = CaptureSettings()
+        on.secretGuardEnabled = true
+        let flagged = guardedItem("P@ssw0rd!2024", at: base)
+        var pinned = flagged
+        pinned.isPinned = true
+        var never = on
+        never.guardedLifetime = 0
+
+        #expect(on.expiresEarly(flagged) == true)
+        #expect(on.expiresEarly(pinned) == false, "pinned entries never expire")
+        #expect(never.expiresEarly(flagged) == false, "lifetime Never disables guarded expiry")
+        #expect(CaptureSettings().expiresEarly(flagged) == false, "guard off")
+        #expect(on.expiresEarly(textItem("hello", at: base)) == false, "not flagged")
+    }
+
+    @Test("The rule and the sweep agree: whatever the rule promises, the sweep delivers")
+    func ruleAgreesWithSweep() {
+        for (pinnedFlag, lifetime) in [(false, 300.0), (true, 300.0), (false, 0.0)] {
+            let store = HistoryStore()
+            store.settings.secretGuardEnabled = true
+            store.settings.guardedLifetime = lifetime
+            var item = guardedItem("P@ssw0rd!2024", at: base)
+            item.isPinned = pinnedFlag
+            store.record(item)
+
+            let promised = store.settings.expiresEarly(store.items[0])
+            store.sweepExpired(now: base.addingTimeInterval(86_400))
+            let removed = store.items.isEmpty
+
+            #expect(promised == removed, "pinned \(pinnedFlag), lifetime \(lifetime)")
+        }
+    }
+
     // MARK: - Capture
 
     @Test("With the guard off, a password-shaped copy is captured as an ordinary entry")

@@ -420,3 +420,19 @@ prompt that every reinstall in this round produced.
 1. Finding 1 (caption truth), with its test.
 2. Finding 2 and 3, if the files are open anyway.
 3. Nothing else until the human verification in Finding 4 has happened; a 0.2.1 depends on it.
+
+### Resolution (2026-10-06, same day)
+
+All five findings fixed in one commit. Finding 1: `CaptureSettings.expiresEarly(_:)` mirrors the
+sweep (guarded, not pinned, lifetime not Never), the card's caption keys off it, and a test asserts
+the rule and the sweep agree on every case. Finding 2: stored menu counts snap to the offered
+choices (ties to the larger), and the picker is driven by the same list. Finding 3: README
+qualifies command-R. Finding 5: status rows are short buttons that open the Settings tab which
+explains and fixes them (`showSettings(tab:)`), and the entry cap is 36. Measured in the system
+menu font, the widest row went from 408 pt to 220 pt. Finding 4 (human look at the glass) remains
+the user's.
+
+Found while verifying: with the search box now a real text field, anything typed during a self
+test run lands in the panel's query (the panel takes keyboard focus, as designed), filtering the
+list and changing what Escape does. That explains a run where the whole keyboard section failed
+while the user was typing. The self test now names any stray query when a check fails.

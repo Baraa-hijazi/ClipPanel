@@ -169,7 +169,7 @@ struct PanelRootView: View {
                     revealedIDs: selection.revealedIDs,
                     actions: actions,
                     showsCaptions: store.showSourceAppCaptions,
-                    guardEnabled: store.settings.secretGuardEnabled
+                    settings: store.settings
                 )
             }
             .frame(height: listHeight)

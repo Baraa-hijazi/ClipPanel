@@ -27,7 +27,16 @@ enum SelfTest {
     private static func run(coordinator: AppCoordinator) async {
         var failures: [String] = []
 
+        // The panel takes keyboard focus while it is open (as designed), and its search box is a real
+        // text field, so anything the person at the Mac types during a run becomes a search query.
+        // That filters the list and changes what Escape does, which made keyboard checks fail for
+        // reasons unrelated to the code. Every failure now reports a stray query when there is one.
+        var strayQueries: Set<String> = []
+
         func check(_ label: String, _ passed: Bool, detail: String = "") {
+            if !passed, !coordinator.panelQuery.isEmpty {
+                strayQueries.insert(coordinator.panelQuery)
+            }
             let mark = passed ? "PASS" : "FAIL"
             let suffix = detail.isEmpty ? "" : "  (\(detail))"
             print("\(mark)  \(label)\(suffix)")
@@ -389,6 +398,12 @@ enum SelfTest {
               })
 
         coordinator.store.removeEverything()
+
+        if !strayQueries.isEmpty {
+            print("INFO  live typing reached the panel during this run (search query: "
+                  + strayQueries.sorted().map { "'\($0)'" }.joined(separator: ", ")
+                  + "). Failures above are likely that, not the code; rerun with hands off the keyboard.")
+        }
 
         print("----------------------")
         if failures.isEmpty {

@@ -21,7 +21,10 @@ nonisolated struct MenuEntryLabel: Equatable, Sendable {
 }
 
 nonisolated enum MenuEntryFormatter {
-    static let maxCharacters = 48
+    /// Sized for menu width: a menu is as wide as its widest row, so this cap sets the menu's width
+    /// once entries are listed. 36 plus an icon and a shortcut hint keeps it near a normal menu's
+    /// width; 48 made it roughly a third wider.
+    static let maxCharacters = 36
     static let maskedTitle = "•••••••• (sensitive)"
 
     /// The entries the menu lists: the history's own order (pinned first, then newest), capped.

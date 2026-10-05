@@ -28,17 +28,28 @@ struct MenuBarContent: View {
             modifiers: coordinator.panelShortcut.menuModifiers
         )
 
+        // Status rows are short buttons that open the Settings tab explaining and fixing what they
+        // report, rather than sentences: a menu is as wide as its widest row, and full-sentence rows
+        // made this one roughly twice the width it needs (user screenshot, REVIEW.md part 5).
         if coordinator.hotKeyUnavailable {
-            Text("Shortcut \(coordinator.panelShortcut.description) is in use by another app")
+            Button("Shortcut \(coordinator.panelShortcut.description) Unavailable...") {
+                coordinator.showSettings(tab: .general)
+            }
         }
         if coordinator.pasteboardAccess == .denied {
-            Text("Clipboard access is turned off in System Settings")
+            Button("Clipboard Access Is Off...") {
+                coordinator.showSettings(tab: .permissions)
+            }
         }
         if !coordinator.canPasteAutomatically {
-            Text("Copy-only mode: picking an entry copies it, then press command-V")
+            Button("Turn On Automatic Paste...") {
+                coordinator.showSettings(tab: .permissions)
+            }
         }
         if !coordinator.pinsPersist {
-            Text("Pinned entries will not survive a restart this session")
+            Button("Pins Not Being Saved...") {
+                coordinator.showSettings(tab: .permissions)
+            }
         }
 
         Divider()

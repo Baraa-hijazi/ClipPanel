@@ -134,6 +134,14 @@ struct MenuEntryTests {
         #expect(AppPreferences.recentEntriesInMenu == 12)
     }
 
+    @Test("Stored counts snap to the choices Settings offers, ties going to the larger", arguments: [
+        (7, 8), (6, 5), (10, 12), (99, 12), (1, 0), (-3, 0), (2, 0), (3, 5), (5, 5), (12, 12),
+    ])
+    func snapsToOfferedChoice(stored: Int, expected: Int) {
+        #expect(AppPreferences.nearestRecentEntriesChoice(to: stored) == expected)
+        #expect(AppPreferences.recentEntriesInMenuChoices.contains(expected))
+    }
+
     // MARK: - Paste path
 
     @Test("Picking an entry from the menu writes it through the shared paste path")

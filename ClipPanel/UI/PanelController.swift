@@ -382,7 +382,7 @@ final class PanelController: NSObject, NSWindowDelegate {
             rootView: HistoryRowsView(
                 items: visible,
                 selectedID: nil,
-                guardEnabled: store.settings.secretGuardEnabled
+                settings: store.settings
             )
         )
         probe.layoutSubtreeIfNeeded()

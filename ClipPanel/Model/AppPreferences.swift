@@ -72,7 +72,9 @@ nonisolated enum AppPreferences {
     }
 
     /// How many recent entries the menu bar menu lists (PLAN.md Item 7). 0 hides the section.
-    static let recentEntriesInMenuRange = 0...12
+    /// The values Settings offers. Stored values snap to the nearest one, so a hand-edited or
+    /// legacy value can never leave the picker showing nothing selected (REVIEW.md part 5, finding 2).
+    static let recentEntriesInMenuChoices = [0, 5, 8, 12]
     static let recentEntriesInMenuDefault = 8
 
     static var recentEntriesInMenu: Int {
@@ -80,11 +82,20 @@ nonisolated enum AppPreferences {
             guard let stored = defaults.object(forKey: Key.recentEntriesInMenu) as? Int else {
                 return recentEntriesInMenuDefault
             }
-            return stored.clamped(to: recentEntriesInMenuRange)
+            return nearestRecentEntriesChoice(to: stored)
         }
         set {
-            defaults.set(newValue.clamped(to: recentEntriesInMenuRange), forKey: Key.recentEntriesInMenu)
+            defaults.set(nearestRecentEntriesChoice(to: newValue), forKey: Key.recentEntriesInMenu)
         }
+    }
+
+    /// Ties go to the larger choice, so a request never quietly gets fewer entries than asked.
+    static func nearestRecentEntriesChoice(to value: Int) -> Int {
+        recentEntriesInMenuChoices.min { left, right in
+            let leftDistance = abs(left - value)
+            let rightDistance = abs(right - value)
+            return leftDistance != rightDistance ? leftDistance < rightDistance : left > right
+        } ?? recentEntriesInMenuDefault
     }
 
     static var clearOnScreenLock: Bool {
