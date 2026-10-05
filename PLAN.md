@@ -240,6 +240,90 @@ model's output.
 
 ---
 
+## Item 7: Recent entries in the menu bar menu (user request)
+
+### What the user asked for
+
+Clicking the menu bar icon currently shows only commands (Open Clipboard, Pause, Clear All, Panic
+Wipe, Settings, Quit). The user wants the latest copied entries listed there too, so the icon is a
+second way to reach history without the shortcut.
+
+### Design decisions
+
+**Keep the menu; add entries to it.** The alternative (left-click opens the panel under the icon,
+right-click shows the menu) needs an AppKit `NSStatusItem` to tell the clicks apart, which means
+leaving `MenuBarExtra`. Not worth it: the user said "as well", the menu pattern is what Maccy and
+Flycut established, and `MenuBarExtra`'s `.menu` style already rebuilds its content on every open
+from the `@Observable` store. One surface gains entries; nothing else moves.
+
+**Selecting an entry pastes it, same path as the panel.** A status item menu does not activate the
+owning app, so the frontmost app at click time is still the one the user was working in. Record it
+when the menu content appears, then route through the existing `PasteInjector.paste(_:plainTextOnly:
+into:)`. Copy-only mode and the Accessibility fallback behave exactly as in the panel.
+
+**Guarded entries obey the Secret Guard switch (Item 1).** With the guard on, a guarded entry
+appears masked (`•••••••• (sensitive)`) and selecting it still pastes; with the guard off it is an
+ordinary row. One honest limitation to record in DESIGN.md: an `NSMenu` cannot be excluded from
+screen capture the way the panel is (`sharingType` is a window property), so entry previews in the
+menu can appear in a screenshot taken while the menu is open. Menus are transient and user-opened,
+so this is an accepted trade, but it is the reason the menu shows one truncated line per entry and
+never a full payload, and the reason the feature has an off switch.
+
+### Specification
+
+- Entries appear at the TOP of the menu, above "Open Clipboard", newest first, pinned entries first
+  within the group exactly as the panel orders them. Count comes from a new setting
+  `recentEntriesInMenu: Int`, default 8, choices 0 (off), 5, 8, 12 in Settings, General.
+- Each entry is a `Button` whose label is `Label { Text(oneLine) } icon: { ... }`:
+  - text: first line of the preview, whitespace-condensed, truncated to 48 characters with an
+    ellipsis;
+  - image: the stored thumbnail as the icon, text "Image, W x H";
+  - files: `doc` symbol icon, the first file name, plus "and N more" when several;
+  - pinned: `pin.fill` as the icon (text entries) or appended to the text (images, files);
+  - guarded while the guard is on: `shield.fill` icon and the masked text.
+- The first nine entries get `.keyboardShortcut` ⌘1 through ⌘9. These are menu-only shortcuts, so
+  they work while the menu is open and never register anything global.
+- Below the entries: a `Divider`, then "Show All..." which calls `showPanel()`, then the existing
+  menu. "Open Clipboard" is renamed to nothing: "Show All..." replaces it and keeps the ⌃⌘V
+  shortcut display, since two items that open the same panel would be clutter.
+- Empty history: a single disabled `Text("No copies yet")` in place of the entries.
+- Capture paused, access denied, hot key unavailable, copy-only mode: the existing informational
+  rows stay where they are.
+
+### Implementation steps
+
+1. `Model/CaptureSettings.swift` and `Model/AppPreferences.swift`: `recentEntriesInMenu` with the
+   usual clamped load (0...12) and save.
+2. `App/AppCoordinator.swift`: `func pasteFromMenu(_ item: ClipItem)` that records
+   `NSWorkspace.shared.frontmostApplication` (skipping ourselves) and awaits
+   `paster.paste(item, plainTextOnly: false, into: target)`; beep only on `.failed`. Expose
+   `recentEntriesForMenu: [ClipItem]` as `store.items.prefix(settings.recentEntriesInMenu)`.
+3. `App/MenuBarContent.swift`: a new `recentEntries` section built per the specification, a
+   `MenuEntryLabel` helper that produces the one-line label and icon (pure formatting, put the
+   string logic in `Model/MenuEntryFormatter.swift` so it is unit-testable without SwiftUI).
+4. `UI/SettingsView.swift`, General tab: `Picker("Show in the menu bar menu", ...)` with the four
+   choices, placed after the history size picker.
+5. DESIGN.md section 13: the screen-capture limitation and the design decisions above.
+
+### Tests
+
+- `MenuEntryFormatterTests`: text truncation at 48 with ellipsis, first line only, whitespace
+  condensing, image and file labels, pinned marker, masked label when guarded and the guard is on,
+  plain label when the guard is off.
+- Preferences round trip and clamping for `recentEntriesInMenu`.
+- Self test: with the switch at 8 and 12 entries recorded, `recentEntriesForMenu.count == 8`; with
+  the switch at 0, it is empty.
+- Paste path: the existing `PasteInjectorTests` already cover the injector; add one coordinator-level
+  test that `pasteFromMenu` records a target and reaches the injector (use the fake keystroke sender).
+
+### Acceptance
+
+Clicking the icon shows the latest entries at the top with ⌘1 through ⌘9, picking one pastes into
+the app that was frontmost (or copies, in copy-only mode), "Show All..." opens the panel, the count
+is adjustable and 0 hides the section, and a guarded entry is masked only while Secret Guard is on.
+
+---
+
 ## Standing item: Developer ID signing (user)
 
 `Scripts/package-release.sh` with `DEVELOPER_ID` and `NOTARY_PROFILE` set. Resolves the login-item
@@ -251,21 +335,24 @@ which trace to the ad-hoc signature's unstable identity.
 ## Commit plan and order
 
 1. Item 1 (Secret Guard opt-in) with tests and doc updates.
-2. Item 2 (hover layout stability) with the invariance test.
-3. Item 5.2 and 5.3 (small, ride along).
-4. Item 3 spike result recorded; then adoption commits 1 through 5 as they land.
-5. Item 4 README.
-6. Item 5.1 helper relocation (not a code commit; DESIGN.md note).
-7. Item 6 if attempted.
+2. Item 7 (recent entries in the menu bar menu) with the formatter tests.
+3. Item 2 (hover layout stability) with the invariance test.
+4. Item 5.2 and 5.3 (small, ride along).
+5. Item 3 spike result recorded; then adoption commits 1 through 5 as they land.
+6. Item 4 README.
+7. Item 5.1 helper relocation (not a code commit; DESIGN.md note).
+8. Item 6 if attempted.
 
-Tag `v0.2.0` after Items 1 through 4; rebuild the release zip and attach it with notes that lead
+Tag `v0.2.0` after Items 1, 7, 2, 3, and 4; rebuild the release zip and attach it with notes that lead
 with "Secret Guard is now opt-in" so existing users are not surprised.
 
 ## Review checklist for Fable afterwards
 
 - Every acceptance line above, checked against the running app, not the diff.
 - Grep for raw `item.isGuarded` reads outside the effective-guard helper; there should be none in
-  consumers.
+  consumers, the menu formatter included.
+- Menu shows recent entries, ⌘1 through ⌘9 work while it is open, and the count setting is honoured
+  including 0.
 - README, onboarding, and REVIEW describe Secret Guard as optional and off by default.
 - `make test`, `make selftest`, `Scripts/verify-release.sh` green on the tagged commit.
 - No em dashes, no attribution lines, in any file or commit.
