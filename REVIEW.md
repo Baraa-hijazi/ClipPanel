@@ -203,3 +203,93 @@ Ordered so that every step leaves the app shippable, same as M1 through M7.
 
 **Deferred, unchanged from M7**: the credential-gated signing and notarization run, the manual paste
 matrix, and the Win11 pinned-ordering comparison. All need the user.
+
+---
+
+## Part 4: Round 3 review and plan (2026-10-05), macOS 26 polish
+
+Written against commit `c9e612e`. Two inputs: a screen recording of a hover glitch (the file did not
+survive screencaptureui's staging folder, so the diagnosis below comes from the layout code, which is
+unambiguous about it), and the question of what Liquid Glass and the rest of macOS 26 should change.
+
+### Finding: text reflows on hover, and the panel height can jump with it
+
+Severity: medium. It is the kind of jitter that makes a tool feel cheap, and it fires on every row
+the pointer crosses.
+
+Mechanism, in `ItemCardView`: the pin and delete buttons are inserted into the row's `HStack`
+conditionally (`if showsActions { rowActions }`). On hover they appear, the text column loses their
+width, and the preview re-wraps. With `lineLimit(4)` a re-wrap can add or drop a line, which changes
+the row's height, which changes the list's height, which `PanelController` has already measured
+WITHOUT the actions (the probe renders rows with no selection and no hover). So the rendered panel
+can disagree with its own measurement by a line of text, and the user sees the list shift.
+
+Fix, for the Opus round (P0 below): reserve the actions' space permanently. Render `rowActions`
+always, with `.opacity(showsActions ? 1 : 0)` and `.allowsHitTesting(showsActions)`, so the text
+column width is a constant and hover changes pixels but never layout. Add `.fixedSize(horizontal:
+false, vertical: true)` on the preview text so wrapping is decided once. Disable implicit animation
+on the hover toggle so the fade is deliberate, not a layout animation. Side effect worth having: the
+measurement probe and the rendered row now agree by construction. Test it as an invariant, in a
+main-actor unit test using `NSHostingView.fittingSize`: a row's height must be identical with and
+without selection, and with and without the pin indicator reserved. The pin indicator has the same
+conditional-insertion shape and should get the same treatment.
+
+### What macOS 26 changes for this app
+
+Three things, in descending order of how much they should move the plan.
+
+**1. Spotlight now has clipboard history built in.** Tahoe's Spotlight keeps roughly the last eight
+hours of copies, plain, no pins, no persistence, no secret handling. This is the new baseline every
+Mac has for free, and the README's comparison section must say so plainly. It also sharpens what
+ClipPanel is for: everything Spotlight's history is not. Pins that survive a restart (encrypted),
+secrets detected and masked and expired, images and files with fidelity re-paste, search that
+excludes guarded entries, zero networking, a panel at the caret. The pitch narrows and gets better.
+
+**2. Liquid Glass.** The panel currently wears `.regularMaterial`, which on Tahoe reads as the
+previous design language. The glass APIs are in the macOS 26 SDK, and a floating palette that sits
+above content is exactly what Apple says glass is for. Adoption plan, with one spike first:
+
+- Spike: the panel is a borderless NSPanel with a clear background. Verify that `glassEffect` on the
+  SwiftUI root refracts the desktop and windows behind the panel, not just content within the same
+  view hierarchy. If it does not, the fallback is to keep the material for the container and apply
+  glass to controls only. This is a one-hour question and it decides the rest.
+- Container: `.glassEffect(.regular, in: RoundedRectangle(...))` on the panel root inside a
+  `GlassEffectContainer`, replacing the material and the hand-drawn stroke border. Keep
+  `sharingType = .none`; glass changes nothing about screen-capture exclusion.
+- Controls: `.buttonStyle(.glass)` for Clear All and the row actions, `.glassProminent` for the
+  primary onboarding button.
+- Selection: the current solid `.selection` fill becomes a glass pill that morphs between rows using
+  `glassEffectID` in a shared namespace, so arrowing through the list slides one highlight rather
+  than lighting rows up and down. This is the single most Tahoe-feeling change available.
+- Icon: the generated PNG set now renders inside Tahoe's legacy-icon wrapper. Produce a layered
+  Icon Composer asset so the icon participates in glass like the system's own.
+- Accessibility: Reduce Transparency and Increase Contrast fall back automatically with glass, which
+  is a reason to prefer the system API over any custom blur.
+
+**3. On-device models, as an experiment only.** The Foundation Models framework runs entirely
+on-device, which is the only kind of model this app could ever use without breaking guarantee 1.
+It could help `SecretDetector` with the cases heuristics handle worst: a password that is also a
+word, a token with no known prefix. Treat strictly as a research spike: non-deterministic output is
+hostile to the detector's test corpus, availability depends on hardware and user settings, and the
+fallback must remain the heuristics. If it ever ships, it ships as an opt-in boost that can only
+ADD a guarded verdict, never remove one, so the worst case is a false positive rather than a leak.
+
+### Smaller Tahoe items
+
+- Menu bar is translucent by default on Tahoe; confirm the status item icon is a template image
+  (SF Symbols are) so it adapts to light and dark wallpaper.
+- Panel entrance uses `.utilityWindow` animation; glass has its own `glassEffectTransition`, use
+  one or the other, not both.
+- Settings already uses `.formStyle(.grouped)`, which is right for Tahoe; no change.
+
+### Plan for the Opus round
+
+- **P0** Hover reflow fix, with the height-invariance test. Also apply the reserved-space treatment
+  to the pin indicator. Small, do first.
+- **P1** Liquid Glass spike, then adoption in the order above if the spike passes: container,
+  controls, morphing selection pill, Icon Composer icon.
+- **P2** README comparison section updated for Spotlight's built-in history, repositioning the
+  pitch as "everything Spotlight's clipboard is not."
+- **P3** Foundation Models detector spike, behind a flag, additive-only, no shipping commitment.
+- Standing, unchanged: Developer ID signing (`Scripts/package-release.sh`), which also resolves the
+  login item, keychain, and Gatekeeper issues at the root.
