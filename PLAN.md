@@ -219,7 +219,7 @@ Secret Guard is described as optional.
 
 ## Item 5: Housekeeping
 
-1. The personal-account push helper (`askpass-personal.sh`) lives in the session scratchpad and is
+1. DONE: `~/.local/bin/clippanel-push.sh`. The personal-account push helper (`askpass-personal.sh`) lived in the session scratchpad and was
    lost on every reboot. Move it to `~/.local/bin/clippanel-push.sh` (outside the repo; it encodes
    a username, not a secret, but it is machine-specific) and document the path and the reason in
    DESIGN.md section 13 next to the existing gh two-account note.

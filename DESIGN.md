@@ -920,3 +920,27 @@ else is framed as what ClipPanel adds, rather than as claims about what Spotligh
 those details change between releases and a README that misdescribes a competitor is worse than one
 that does not describe it. Secret Guard is listed as optional. The usage section now covers the
 menu bar's recent entries and their screenshot limitation.
+
+### On-device model spike: negative, not integrated (2026-10-06, PLAN.md Item 6)
+
+Question: could Apple's on-device Foundation Models help the secret detector with the cases
+heuristics handle worst (secrets made of words, random-looking text that is not secret)? Measured on
+this Mac (Apple M5 Pro, macOS 27, model available) with a standalone script and eight synthetic
+inputs, one fresh session per input, a one-word yes/no instruction:
+
+- Accuracy 4 of 8. It said no to `correcthorsebatterystaple`, `Summer2024!`, and `hunter2`, and yes
+  to a git short hash. That is a coin flip on exactly the cases it was meant to help with.
+- Latency: median 250 ms, first call 2,028 ms. The plan's disqualification line for the capture
+  path was 50 ms.
+
+Verdict: not integrated, not even behind a flag. Moving it to a background pass would fix latency
+but not accuracy, and with Secret Guard now off by default the payoff is smaller still. Worth
+re-running only if a future model or a structured-output prompt changes the accuracy picture; the
+script was throwaway, but the eight inputs above are the benchmark to beat.
+
+### Push helper made permanent (2026-10-06, PLAN.md Item 5.1)
+
+`~/.local/bin/clippanel-push.sh` (outside the repo, machine-specific) replaces the scratchpad askpass
+script that every reboot deleted. It passes the personal account's token from gh's keyring to git for
+one push, because gh's credential helper otherwise serves the work account's token. Usage from the
+repo: `clippanel-push.sh origin main`.
