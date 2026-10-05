@@ -224,9 +224,19 @@ Secret Guard is described as optional.
    a username, not a secret, but it is machine-specific) and document the path and the reason in
    DESIGN.md section 13 next to the existing gh two-account note.
 2. `AppNameResolver` cache cap (REVIEW.md part 1 small observation), 64 entries, oldest evicted.
-3. The `Picker("Expire them after")` in Settings gains a "Never" option (`TimeInterval(0)`) so users
+3. DONE in Item 1 (same control). The `Picker("Expire them after")` in Settings gains a "Never" option (`TimeInterval(0)`) so users
    who keep Secret Guard on can still opt out of expiry alone; `sweepExpired` already treats 0 as
    disabled.
+
+4. **Tests must not touch the user's real preferences.** Found during Item 1: unit tests run
+   inside the app as test host, so `UserDefaults.standard` IS the user's `com.baraahijazi.ClipPanel`
+   domain, and every `AppPreferences.save` call in a test writes all keys into it (after Item 1 the
+   user's domain contained a `secretGuardEnabled` key the user never set). Existing tests save and
+   restore the keys they touch, so no setting was corrupted, but that discipline is one forgotten
+   key away from overwriting a real preference. Fix: give `AppPreferences` an injectable
+   `UserDefaults` (default `.standard`), and have tests use
+   `UserDefaults(suiteName: "ClipPanelTests-\(UUID())")` removed in teardown. Acceptance: run the
+   suite, then `defaults read com.baraahijazi.ClipPanel` shows no key the user did not set.
 
 ---
 
