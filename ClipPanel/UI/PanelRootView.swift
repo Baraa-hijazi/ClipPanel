@@ -27,12 +27,9 @@ struct PanelRootView: View {
             content
         }
         .frame(width: PanelMetrics.width)
-        .background(.regularMaterial)
+        // The glass behind this view (NSGlassEffectView in PanelController) provides the material and
+        // the edge. The clip stays so scrolling content cannot paint past the rounded corners.
         .clipShape(RoundedRectangle(cornerRadius: PanelMetrics.cornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: PanelMetrics.cornerRadius, style: .continuous)
-                .strokeBorder(.separator, lineWidth: 0.5)
-        )
     }
 
     @ViewBuilder
@@ -153,7 +150,8 @@ struct PanelRootView: View {
                 Button("Clear All") {
                     actions.clearAll()
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.glass)
+                .controlSize(.small)
                 .font(.callout)
                 .help("Remove every unpinned entry")
             }

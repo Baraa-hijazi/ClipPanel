@@ -81,6 +81,7 @@ enum SelfTest {
               detail: "frontmost \(frontmostBeforeShow ?? "none") before, "
                       + "\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none") after")
         check("panel excluded from screen capture", shown.excludedFromScreenCapture)
+        check("panel content sits in Liquid Glass", shown.contentIsGlass)
         check("panel sits fully inside a screen", shown.fitsOnAScreen,
               detail: "frame \(NSStringFromRect(shown.frame))")
         check("recorded the app to paste back into",

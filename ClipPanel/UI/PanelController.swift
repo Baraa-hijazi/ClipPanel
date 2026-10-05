@@ -18,6 +18,9 @@ final class PanelController: NSObject, NSWindowDelegate {
     private let paste: (ClipItem, Bool, NSRunningApplication?) async -> PasteOutcome
 
     private var window: PanelWindow?
+    /// Held directly rather than found by casting `window.contentView`: the content view is the glass
+    /// container now, with the hosting view inside it.
+    private var hostingView: NSHostingView<PanelRootView>?
     private var isHiding = false
     /// True while a confirmation dialog is up, so losing key status to the dialog does not
     /// dismiss the panel underneath it.
@@ -317,7 +320,20 @@ final class PanelController: NSObject, NSWindowDelegate {
 
         let hosting = NSHostingView(rootView: rootView(listHeight: measuredListHeight()))
         hosting.sizingOptions = .intrinsicContentSize
-        panel.contentView = hosting
+        hostingView = hosting
+
+        // Liquid Glass (PLAN.md Item 3). NSGlassEffectView is AppKit's container for embedding a
+        // window's content in glass, and the right tool for a borderless AppKit-owned panel, rather
+        // than SwiftUI's glassEffect on a view inside it. It draws the rounded edge itself, so the
+        // SwiftUI root no longer paints a material or a stroke. Reduce Transparency and Increase
+        // Contrast fallbacks come with the system view. Screen-capture exclusion is a window
+        // property and is unaffected.
+        let glass = NSGlassEffectView()
+        glass.cornerRadius = PanelMetrics.cornerRadius
+        glass.style = .regular
+        hosting.autoresizingMask = [.width, .height]
+        glass.contentView = hosting
+        panel.contentView = glass
 
         return panel
     }
@@ -335,8 +351,7 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     private func applySizeAndPosition(to panel: PanelWindow) {
         // Re-read access on every show so a permission change mid-session is reflected.
-        (panel.contentView as? NSHostingView<PanelRootView>)?.rootView =
-            rootView(listHeight: measuredListHeight())
+        hostingView?.rootView = rootView(listHeight: measuredListHeight())
 
         let size = fittingSize(for: panel)
         panel.setContentSize(size)
@@ -377,7 +392,8 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     private func fittingSize(for panel: PanelWindow) -> CGSize {
-        let fitting = panel.contentView?.fittingSize ?? .zero
+        // Measured on the hosting view: the glass container around it has no intrinsic size of its own.
+        let fitting = hostingView?.fittingSize ?? .zero
         let height = min(max(fitting.height, 1), PanelMetrics.maxHeight)
         return CGSize(width: PanelMetrics.width, height: height)
     }
@@ -403,6 +419,7 @@ extension PanelController {
         var frame: NSRect = .zero
         var fitsOnAScreen = false
         var restoreTargetBundleID: String?
+        var contentIsGlass = false
     }
 
     var diagnostics: Diagnostics {
@@ -416,7 +433,8 @@ extension PanelController {
             excludedFromScreenCapture: window.sharingType == .none,
             frame: frame,
             fitsOnAScreen: NSScreen.screens.contains { $0.visibleFrame.contains(frame) },
-            restoreTargetBundleID: appToRestoreFocusTo?.bundleIdentifier
+            restoreTargetBundleID: appToRestoreFocusTo?.bundleIdentifier,
+            contentIsGlass: window.contentView is NSGlassEffectView
         )
     }
 }

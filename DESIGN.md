@@ -878,3 +878,35 @@ user working in another app. The panel hides the instant it loses key status (cl
 dismiss), so a real click during the 300 ms window legitimately closes it. The check now retries
 once, announced in the output, never silently: a real defect fails both attempts, a stray click
 does not repeat on cue. Eight consecutive runs clean afterwards.
+
+### Liquid Glass (2026-10-06, PLAN.md Item 3)
+
+Spike first, as planned, and it changed the plan. The glass APIs exist in the macOS 27 SDK (in
+SwiftUICore, available from macOS 26.0, matching the deployment target). The plan's open question
+was whether SwiftUI `.glassEffect` on a view inside a borderless transparent NSPanel would sample
+what is behind the window. It could not be answered by screenshot: the panel is excluded from screen
+capture by design, and capturing the user's desktop to find out was not acceptable. AppKit answers
+it differently: `NSGlassEffectView` is the framework's container for embedding a window's content in
+glass, with its own corner radius. For an AppKit-owned panel that is the canonical route, so the
+panel's content view is now an `NSGlassEffectView` wrapping the SwiftUI hosting view, and the SwiftUI
+root dropped its `.regularMaterial` background and hand-drawn stroke (the clip stays, so scrolling
+content cannot paint past the corners). The controller now holds the hosting view directly and
+measures it, since the glass container has no intrinsic size and the old `contentView as?
+NSHostingView` cast would have silently stopped updating the panel. The self test asserts the
+content is glass, and sizing, focus, and capture exclusion all still pass.
+
+Deliberate departures from the plan, each with its reason:
+
+- **No glass selection pill.** The panel is glass now, and Apple's guidance is not to layer glass on
+  glass. The selection highlight instead slides between rows via `matchedGeometryEffect` in a shared
+  namespace, which is the motion the plan wanted.
+- **Row actions stay borderless.** A glass capsule on every row of a dense list would be heavy.
+  Clear All uses `.glass`, the onboarding primary button `.glassProminent`.
+- **No `glassEffectTransition`.** The container is AppKit's, so the panel keeps its window-level
+  `.utilityWindow` entrance animation; choosing one, as the plan said, means this one.
+- **Icon Composer icon deferred.** `.icon` files are authored in Apple's Icon Composer app; writing
+  that format by hand would be guesswork. The PNG set keeps working inside Tahoe's legacy wrapper
+  until someone builds the layered icon in the app.
+
+Needs a human eye, and is on the review checklist: how the glass actually reads over a busy desktop,
+light and dark, and with Reduce Transparency on. None of that is visible to a headless run.

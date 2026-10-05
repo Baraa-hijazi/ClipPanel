@@ -223,7 +223,7 @@ Secret Guard is described as optional.
    lost on every reboot. Move it to `~/.local/bin/clippanel-push.sh` (outside the repo; it encodes
    a username, not a secret, but it is machine-specific) and document the path and the reason in
    DESIGN.md section 13 next to the existing gh two-account note.
-2. `AppNameResolver` cache cap (REVIEW.md part 1 small observation), 64 entries, oldest evicted.
+2. DONE in an earlier round. `AppNameResolver` cache cap (REVIEW.md part 1 small observation), 64 entries; it clears when full rather than evicting oldest-first, which is bounded and is what matters.
 3. DONE in Item 1 (same control). The `Picker("Expire them after")` in Settings gains a "Never" option (`TimeInterval(0)`) so users
    who keep Secret Guard on can still opt out of expiry alone; `sweepExpired` already treats 0 as
    disabled.

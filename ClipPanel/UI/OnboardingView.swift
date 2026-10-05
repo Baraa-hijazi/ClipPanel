@@ -138,6 +138,7 @@ struct OnboardingView: View {
             } else {
                 Button("Start Using ClipPanel", action: onFinish)
                     .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.glassProminent)
             }
         }
     }

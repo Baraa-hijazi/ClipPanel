@@ -18,6 +18,9 @@ struct ItemCardView: View {
     let isGuarded: Bool
     let actions: PanelActions
     var showsCaption = true
+    /// Shared across the list's rows so the selection highlight slides between them rather than
+    /// switching one row off and the next on. Optional so a card can stand alone (tests, previews).
+    var selectionNamespace: Namespace.ID? = nil
 
     @State private var isHovering = false
 
@@ -72,10 +75,20 @@ struct ItemCardView: View {
             .accessibilityHidden(!item.isPinned)
     }
 
+    /// A solid highlight rather than a glass pill: the panel itself is glass now, and Apple's guidance
+    /// is not to layer glass on glass. The sliding motion is what the plan was after.
+    @ViewBuilder
     private var background: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(isSelected ? AnyShapeStyle(.selection) : AnyShapeStyle(.clear))
-            .padding(.horizontal, 4)
+        if isSelected {
+            let highlight = RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(.selection)
+                .padding(.horizontal, 4)
+            if let selectionNamespace {
+                highlight.matchedGeometryEffect(id: "selection", in: selectionNamespace)
+            } else {
+                highlight
+            }
+        }
     }
 
     @ViewBuilder

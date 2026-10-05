@@ -20,6 +20,8 @@ struct HistoryRowsView: View {
     /// card never decides for itself whether to mask.
     var guardEnabled = false
 
+    @Namespace private var selectionSpace
+
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -29,7 +31,8 @@ struct HistoryRowsView: View {
                     isRevealed: revealedIDs.contains(item.id),
                     isGuarded: guardEnabled && item.isGuarded,
                     actions: actions,
-                    showsCaption: showsCaptions
+                    showsCaption: showsCaptions,
+                    selectionNamespace: selectionSpace
                 )
                 .id(item.id)
 
@@ -39,5 +42,6 @@ struct HistoryRowsView: View {
             }
         }
         .frame(width: PanelMetrics.width)
+        .animation(.snappy(duration: 0.18), value: selectedID)
     }
 }
